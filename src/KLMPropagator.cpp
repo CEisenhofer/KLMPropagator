@@ -6,6 +6,7 @@
 #include <ogdf/layered/OptimalRanking.h>
 #include <ogdf/layered/SugiyamaLayout.h>
 #include <utility>
+#include <stack>
 
 KLMPropagator::KLMPropagator(solver &s, const func_decl &nodeFct, Logic logic,
                              std::unordered_map<expr, expr_template*, expr_hash, expr_eq> abstraction) :
@@ -93,8 +94,8 @@ void KLMPropagator::AddPosConnection(edge* e1) {
             just.push_back(e1->get_expr());
             just.push_back(backEdge->get_expr());
             just.push_back(e2.second->get_expr());
-            std::cout << "Connecting: " << e1->get_to()->to_string() << " with " << e2.second->get_to()->to_string()
-                      << " due to eq2" << std::endl;
+            //std::cout << "Connecting: " << e1->get_to()->to_string() << " with " << e2.second->get_to()->to_string()
+            //          << " due to eq2" << std::endl;
             propagate(just, nodeFct(e1->get_to()->get_label(), e2.second->get_to()->get_label()));
         }
     }
@@ -106,8 +107,8 @@ void KLMPropagator::AddPosConnection(edge* e1) {
             just.push_back(e1->get_expr());
             just.push_back(e2.second->get_expr());
             just.push_back(e2.second->get_to()->get_connected(e1->get_from())->get_expr());
-            std::cout << "Connecting: " << e2.second->get_to()->to_string() << " with " << e1->get_to()->to_string()
-                      << " due to eq3" << std::endl;
+            //std::cout << "Connecting: " << e2.second->get_to()->to_string() << " with " << e1->get_to()->to_string()
+            //          << " due to eq3" << std::endl;
             propagate(just, nodeFct(e2.second->get_to()->get_label(), e1->get_to()->get_label()));
         }
     }
@@ -359,8 +360,24 @@ Z3_lbool KLMPropagator::eval(node* n, edge* edge) {
 }
 
 void KLMPropagator::check_model() {
-    if (logic != C)
-        std::cout << "Warning: Currently only checking conditions for C" << std::endl;
+    if (logic != C && logic != CL)
+        std::cout << "Warning: Currently only checking conditions for C and CL" << std::endl;
+    for (auto np: exprToNode) {
+        auto n = np.second;
+        if (n->get_connected().size() + n->get_none_connected().size() != exprToNode.size())
+            model_failed("outgoing edges for " + n->to_string() + " are not fully defined");
+        for (auto e: n->get_connected()) {
+            if (e.second->get_state() != Connected)
+                model_failed("edge " + e.second->get_from()->to_string() + " -> " + e.second->get_to()->to_string() +
+                             " is both connected and not");
+        }
+        for (auto e: n->get_none_connected()) {
+            if (e.second->get_state() != NonConnected)
+                model_failed("edge " + e.second->get_from()->to_string() + " -> " + e.second->get_to()->to_string() +
+                             " is both connected and not");
+        }
+
+    }
     // Refl
     for (const auto &n: exprToNode) {
         if (!n.second->is_connected(n.second) || n.second->is_none_connected(n.second))
@@ -397,6 +414,65 @@ void KLMPropagator::check_model() {
                                  " to evaluate to true");
             }
         }
+    }
+
+    if (HasLoop()) {
+        // maybe unsigned and bor the already visited rows
+        bool* reachable = new bool[exprToNode.size() * exprToNode.size()];
+        unsigned cnt = exprToNode.size();
+        auto is_reachable = [reachable, cnt](unsigned from, unsigned to) {
+            return reachable[cnt * from + to];
+        };
+        unsigned i = 0;
+        std::unordered_map<node*, unsigned> nodeToId;
+        for (const auto &n: exprToNode) {
+            nodeToId[n.second] = i++;
+        }
+
+        for (const auto &np: exprToNode) {
+            auto n1 = np.second;
+            unsigned id1 = nodeToId[n1];
+            std::stack<node*> toProcess;
+            bool* r = reachable + (cnt * id1);
+            toProcess.push(n1);
+            while (!toProcess.empty()) {
+                auto n2 = toProcess.top();
+                unsigned id2 = nodeToId[n2];
+                toProcess.pop();
+                if (r[id2])
+                    continue;
+                r[id2] = true;
+                for (const auto &n3: n2->get_connected()) {
+                    toProcess.push(n3.second->get_to());
+                }
+            }
+        }
+
+        //if (!HasTrans()) { // Trans subsumes Loop; just apply only Trans
+
+        for (const auto &e: exprToEdge) {
+            if (e.second->get_state() != Connected)
+                continue;
+            if (is_reachable(nodeToId[e.second->get_to()], nodeToId[e.second->get_from()])) {
+                for (auto &r1: exprToNode) {
+                    if (!is_reachable(nodeToId[e.second->get_to()], nodeToId[r1.second]) ||
+                        !is_reachable(nodeToId[r1.second], nodeToId[e.second->get_to()]))
+                        continue;
+
+                    for (auto &r2: r1.second->get_connected()) {
+                        if (is_reachable(nodeToId[r2.first], nodeToId[e.second->get_from()]) &&
+                            !r2.first->is_connected(r1.second)) {
+                            if (!r2.first->is_connected(r1.second))
+                                model_failed("node " + r2.first->to_string() + " should be connected to " +
+                                             r1.second->to_string() + " because of loop");
+                        }
+                    }
+                }
+            }
+        }
+        //}
+
+        delete[] reachable;
     }
 }
 

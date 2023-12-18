@@ -1,7 +1,7 @@
 #include "Node.h"
 
 expr_vector node::get_transitive_out_just(node* n) {
-	assert(!is_transitive_out(n));
+	assert(is_transitive_out(n));
 	expr_vector just(m_label.ctx());
 	for (auto e : m_transitive_out[n])
 		just.push_back(e->get_expr());
@@ -9,7 +9,7 @@ expr_vector node::get_transitive_out_just(node* n) {
 }
 
 expr_vector node::get_transitive_in_just(node* n) {
-	assert(!is_transitive_in(n));
+	assert(is_transitive_in(n));
 	expr_vector just(m_label.ctx());
 	for (auto e : m_transitive_in[n])
 		just.push_back(e->get_expr());

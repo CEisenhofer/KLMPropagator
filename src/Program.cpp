@@ -21,16 +21,16 @@ static uint64_t stop_watch() {
 
 static std::unordered_map<std::string, Logic> SupportedLogicsMap;
 
-static void CrashParams() {
+static void crash_params() {
     std::cout << "Usage: KLM [-t=[timeout in ms] -l=[C|CL|CM|P|M] --smtlib --visual] <file>" << std::endl;
     exit(-1);
 }
 
 static void
-ParseParams(const std::vector<std::string> &args, unsigned &timeout, Logic &logic, bool &smtlib, bool &visual,
-            bool &bench) {
+parse_params(const std::vector<std::string> &args, unsigned &timeout, Logic &logic, bool &smtlib, bool &visual,
+             bool &bench) {
     if (args.empty() || !std::filesystem::exists(args[args.size() - 1]))
-        CrashParams();
+        crash_params();
 
     SupportedLogicsMap["C"] = C;
     SupportedLogicsMap["CL"] = CL;
@@ -50,16 +50,17 @@ ParseParams(const std::vector<std::string> &args, unsigned &timeout, Logic &logi
             ss.ignore(3);
             ss >> timeout;
             if (ss.fail())
-                CrashParams();
+                crash_params();
             if (timeout <= 0)
-                CrashParams();
+                crash_params();
             continue;
         }
         if (starts_with(args[i], "-l=")) {
             const std::string logicString = args[i].substr(3);
-            if (SupportedLogicsMap.find(logicString.substr(3)) == SupportedLogicsMap.end())
-                CrashParams();
-            logic = SupportedLogicsMap[logicString];
+            auto it = SupportedLogicsMap.find(logicString);
+            if (it == SupportedLogicsMap.end())
+                crash_params();
+            logic = it->second;
             continue;
         }
         if (args[i] == "--bench") {
@@ -84,7 +85,7 @@ int main(int argc, char** argv) {
     bool smtlib;
     bool visual;
     bool bench;
-    ParseParams(args, timeout, logic, smtlib, visual, bench);
+    parse_params(args, timeout, logic, smtlib, visual, bench);
 
     if (bench) {
         benchmark(logic);
