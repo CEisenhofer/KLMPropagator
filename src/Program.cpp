@@ -1,11 +1,9 @@
 #include "Program.h"
-#include "LanguageLexer.h"
 #include <cstdlib>
 #include <cstring>
 #include <chrono>
+#include <fstream>
 #include <filesystem>
-
-class LanguageVisitorImpl;
 
 static decltype(std::chrono::high_resolution_clock::now()) start_time;
 static decltype(std::chrono::high_resolution_clock::now()) end_time;
@@ -75,6 +73,128 @@ parse_params(const std::vector<std::string> &args, unsigned &timeout, Logic &log
     }
 }
 
+enum op : unsigned char {
+    op_not,
+    op_open,
+    op_and,
+    op_or,
+    op_implies,
+    op_eq,
+    op_edge,
+    op_none_edge,
+    op_none,
+    op_close,
+};
+
+static inline bool is_alphanumeric(char c) {
+    return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_' || c == '$' || c == '#';
+}
+
+static inline bool is_whitespace(char c) {
+    return c == ' ' || c == '\n' || c == '\r' || c == '\t';
+}
+
+static expr parse_language(context& ctx, func_decl& node_fct, const std::string& line) {
+    std::vector<op> operator_stack;
+    expr_vector output_stack(ctx);
+    std::stringstream tokenizer;
+    operator_stack.push_back(op_open);
+
+    auto shift = [&ctx, &node_fct, &line, &output_stack, &operator_stack, &tokenizer](){
+        std::string s = tokenizer.str();
+        if (s.empty())
+            return;
+        tokenizer.str("");
+        op op1;
+        if (s == "true")
+            output_stack.push_back(ctx.bool_val(true)), op1 = op_none;
+        else if (s == "false")
+            output_stack.push_back(ctx.bool_val(false)), op1 = op_none;
+        else if (s == "&")
+            op1 = op_and;
+        else if (s == "|")
+            op1 = op_or;
+        else if (s == "!")
+            op1 = op_not;
+        else if (s == "=>")
+            op1 = op_implies;
+        else if (s == "=")
+            op1 = op_eq;
+        else if (s == "->")
+            op1 = op_edge;
+        else if (s == "-/>")
+            op1 = op_none_edge;
+        else if (s == "(")
+            operator_stack.push_back(op_open), op1 = op_none;
+        else if (s == ")")
+            op1 = op_close;
+        else
+            output_stack.push_back(ctx.bool_const(s.c_str())), op1 = op_none;
+        if (op1 == op_none)
+            return;
+        op op2;
+        while (!operator_stack.empty() && operator_stack.back() != op_open && operator_stack.back() < op1) {
+            op2 = operator_stack.back();
+            operator_stack.pop_back();
+            if (output_stack.empty())
+                throw exception(("Missing operand in assertion " + line).c_str());
+            if (op2 == op_not) {
+                output_stack.push_back(output_stack.back());
+                output_stack.pop_back();
+                return;
+            }
+            if (output_stack.size() < 2)
+                throw exception(("Missing operand in assertion " + line).c_str());
+            expr a1 = output_stack[output_stack.size() - 2];
+            expr a2 = output_stack[output_stack.size() - 1];
+            output_stack.pop_back();
+            output_stack.pop_back();
+            switch (op2) {
+                case op_and:
+                    output_stack.push_back(a1 && a2);
+                    break;
+                case op_or:
+                    output_stack.push_back(a1 || a2);
+                    break;
+                case op_implies:
+                    output_stack.push_back(implies(a1, a2));
+                    break;
+                case op_eq:
+                    output_stack.push_back(a1 == a2);
+                    break;
+                case op_edge:
+                    output_stack.push_back(node_fct(a1, a2));
+                    break;
+                case op_none_edge:
+                    output_stack.push_back(!node_fct(a1, a2));
+                    break;
+            }
+        }
+        if (op1 == op_close) {
+            if (operator_stack.empty() || operator_stack.back() != op_open)
+                throw exception(("Unmatched bracket in assertion " + line).c_str());
+            operator_stack.pop_back();
+        }
+        else
+            operator_stack.push_back(op1);
+    };
+
+    char prev = ' ';
+    for (int i = 0; i < line.size(); i++) {
+        if (!is_whitespace(line[i]) && (is_whitespace(prev) || is_alphanumeric(prev) == is_alphanumeric(line[i])))
+            tokenizer << line[i];
+        else
+            shift();
+        prev = line[i];
+    }
+    shift();
+    tokenizer << ")"; // force evaluation of everything!
+    shift();
+    if (!operator_stack.empty() || output_stack.size() != 1)
+        throw exception(("Missing operand in assertion " + line).c_str());
+    return output_stack.back();
+}
+
 int main(int argc, char** argv) {
     std::vector<std::string> args(argc);
     for (unsigned i = 0; i < argc; i++) {
@@ -107,26 +227,22 @@ int main(int argc, char** argv) {
     }
     if (smtlib) {
         smtlib2 = content;
-    } else {
-        antlr4::ANTLRInputStream inputStream(content);
-        LanguageLexer lexer(&inputStream);
-        antlr4::CommonTokenStream commonTokenStream(&lexer);
-        LanguageParser parser(&commonTokenStream);
-        LanguageVisitorImpl visitor(ctx);
-        expr commands(ctx);
+    }
+    else {
+        expr_vector assertions(ctx);
         try {
-            commands = std::any_cast<expr>(parser.statements()->accept(&visitor));
+            sort_vector domain(ctx);
+            domain.push_back(ctx.bool_sort());
+            domain.push_back(ctx.bool_sort());
+            func_decl node_fct = ctx.function("node", domain, ctx.bool_sort());
+            std::stringstream ss(content);
+            std::string line;
+            while (std::getline(ss, line, '\n')) {
+                assertions.push_back(parse_language(ctx, node_fct, line));
+            }
         }
         catch (std::exception &e) {
             exit(-1);
-        }
-        expr_vector assertions(ctx);
-        if (commands.is_and())
-            assertions.push_back(commands);
-        else {
-            for (const auto &arg: commands.args()) {
-                assertions.push_back(arg);
-            }
         }
         smtlib2 = to_SMTLIB(assertions);
     }
@@ -134,8 +250,7 @@ int main(int argc, char** argv) {
     return 0;
 }
 
-void
-Solve(context &context, const std::string &smtlib2, unsigned timeout, Logic logic, bool smtlibOutput, bool visual) {
+void Solve(context &context, const std::string &smtlib2, unsigned timeout, Logic logic, bool smtlibOutput, bool visual) {
     sort nodeSort = context.uninterpreted_sort("Node");
 
     sort_vector domain(context);
@@ -189,10 +304,14 @@ Solve(context &context, const std::string &smtlib2, unsigned timeout, Logic logi
         std::string model = propagator.get_model(smtlibOutput);
         std::cout << model << std::endl;
         if (visual) {
-            propagator.display_model(smtlibOutput);
-            std::ofstream of("output-info.txt");
-            of << model;
+            std::string s = propagator.display_model(smtlibOutput);
+            std::ofstream of("output-graph.dot");
+            of << s;
             of.close();
+            std::ofstream of2("output-info.txt");
+            of2 << model;
+            of2.close();
+            std::cout << "Outputting graph to \"output-graph.dot\" - use dot (graphviz) to compile.\nModel written to \"output-info.txt\"" << std::endl;
         }
         propagator.check_model();
     }

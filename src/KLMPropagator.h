@@ -71,7 +71,7 @@ public:
     Z3_lbool eval(node* n, edge* e);
     void check_model();
     std::string get_model(bool smtlib) const;
-    void display_model(bool smtlib) const;
+    std::string display_model(bool smtlib) const;
 };
 
 class expr_template {

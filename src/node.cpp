@@ -23,7 +23,7 @@ std::string node::to_string() const {
     return n;
 }
 
-expr edge::GetVariable(const std::string& variable) {
+expr edge::get_variable(const std::string& variable) {
     if (m_variables.find(variable) != m_variables.cend())
         return *m_variables[variable];
     auto value = expr(m_expr.ctx(), Z3_mk_fresh_const(m_expr.ctx(), variable.c_str(), m_expr.ctx().bool_sort()));

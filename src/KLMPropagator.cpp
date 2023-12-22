@@ -1,12 +1,7 @@
 #include "KLMPropagator.h"
-#include <ogdf/fileformats/GraphIO.h>
-#include <ogdf/basic/GraphAttributes.h>
-#include <ogdf/layered/MedianHeuristic.h>
-#include <ogdf/layered/OptimalHierarchyLayout.h>
-#include <ogdf/layered/OptimalRanking.h>
-#include <ogdf/layered/SugiyamaLayout.h>
 #include <utility>
 #include <stack>
+#include <unordered_map>
 
 KLMPropagator::KLMPropagator(solver &s, const func_decl &nodeFct, Logic logic,
                              std::unordered_map<expr, expr_template*, expr_hash, expr_eq> abstraction) :
@@ -294,8 +289,8 @@ void KLMPropagator::created(const expr &e) {
 
 std::string KLMPropagator::ExprToString(const node &node, bool smtlib) const {
     if (smtlib)
-        return node.to_string();
-    return abstraction.find(node.get_label())->second->ExprToString();
+        return '"' + node.to_string() + '"';
+    return '"' + abstraction.find(node.get_label())->second->ExprToString() + '"';
 }
 
 static void model_failed(std::string msg) {
@@ -530,92 +525,59 @@ struct std::hash<ptr_pair<node>> {
 };
 
 
-void KLMPropagator::display_model(bool smtlib) const {
-    ogdf::Graph G;
-    ogdf::GraphAttributes GA(G,
-                             ogdf::GraphAttributes::nodeGraphics |
-                             ogdf::GraphAttributes::edgeGraphics |
-                             ogdf::GraphAttributes::nodeLabel |
-                             ogdf::GraphAttributes::edgeLabel |
-                             ogdf::GraphAttributes::edgeArrow |
-                             ogdf::GraphAttributes::edgeStyle |
-                             ogdf::GraphAttributes::nodeStyle);
+std::string KLMPropagator::display_model(bool smtlib) const {
+    std::stringstream ss;
+    ss << "digraph G {\n";
 
     std::unordered_set<ptr_pair<node>> covered;
 
-    std::map<node*, ogdf::node> nodeMap;
+    std::unordered_map<node*, std::string> nodeMap;
     for (const auto &edge: exprToEdge) {
         if (covered.find(ptr_pair<node>(edge.second->get_to(), edge.second->get_from())) != covered.end())
             continue;
 
-        ogdf::node from_node, to_node;
+        std::string from_node, to_node;
         auto from_it = nodeMap.find(edge.second->get_from());
-        auto to_it = nodeMap.find(edge.second->get_to());
         if (from_it == nodeMap.end()) {
-            from_node = G.newNode();
+            from_node = ExprToString(*edge.second->get_from(), smtlib);
+            ss << from_node << ";\n";
             nodeMap[edge.second->get_from()] = from_node;
-            GA.label(from_node) = ExprToString(*edge.second->get_from(), smtlib);
         } else
             from_node = from_it->second;
+        auto to_it = nodeMap.find(edge.second->get_to());
         if (to_it == nodeMap.end()) {
-            to_node = G.newNode();
+            to_node = ExprToString(*edge.second->get_to(), smtlib);
+            ss << to_node << ";\n";
             nodeMap[edge.second->get_to()] = to_node;
-            GA.label(to_node) = ExprToString(*edge.second->get_to(), smtlib);
         } else
             to_node = to_it->second;
 
-        ogdf::edge e = G.newEdge(from_node, to_node);
+        std::string att;
 
         if (edge.second->get_state() == Connected) {
-            ogdf::Color color;
-            color.red(0);
-            color.green(0);
-            color.blue(255);
-            GA.strokeColor(e) = color;
+            att = "color=\"#0000FF\"";
 
             if (edge.second->get_to()->is_connected(edge.second->get_from()) &&
                 edge.second->get_to()->get_connected(edge.second->get_from())->get_state() == Connected) {
 
                 covered.insert(ptr_pair<node>(edge.second->get_from(), edge.second->get_to()));
-                GA.arrowType(e) = ogdf::EdgeArrow::Both;
-                color.red(0);
-                color.green(255);
-                color.blue(0);
-                GA.strokeColor(e) = color;
+                att = "dir=none color=\"#00FF00\"";
             }
         } else if (edge.second->get_state() == NonConnected) {
-            GA.strokeType(e) = ogdf::StrokeType::Dashdot;
-            ogdf::Color color;
-            color.red(255);
-            color.green(0);
-            color.blue(0);
-            GA.strokeColor(e) = color;
-            std::stringstream ss("");
-            /*for (const auto &variable: edge.second->get_variable()) {
+            att = "color=\"#FF0000\"";
+            /*std::stringstream ss("");
+            for (const auto &variable: edge.second->get_variable()) {
                 auto it = interpretation.find(*variable.second);
                 if (it != interpretation.end()) {
                     ss << variable.first << " = " << (it->second ? "true" : "false") << "\n";
                 }
             }*/
-            std::string s = ss.str();
-            std::string &s2 = GA.label(e);
-            s2 = s;
         }
+
+        ss << from_node << " -> " << to_node << " [" << att << "];\n";
     }
-
-    ogdf::SugiyamaLayout SL;
-    SL.setRanking(new ogdf::OptimalRanking());
-    SL.setCrossMin(new ogdf::MedianHeuristic());
-
-    ogdf::OptimalHierarchyLayout* ohl = new ogdf::OptimalHierarchyLayout();
-    ohl->layerDistance(30.0);
-    ohl->nodeDistance(25.0);
-    ohl->weightBalancing(0.8);
-    SL.setLayout(ohl);
-
-    SL.call(GA);
-
-    ogdf::GraphIO::write(GA, "output-image.svg", ogdf::GraphIO::drawSVG);
+    ss << "}\n";
+    return ss.str();
 }
 
 expr_template::expr_template(expr temp, std::vector<std::string> &&variables) : m_template(std::move(temp)),
@@ -629,7 +591,7 @@ expr expr_template::get_instance(edge* edge) {
 
     auto replacements = expr_vector(m_template.ctx());
     for (unsigned i = 0; i < m_variables.size(); i++) {
-        replacements.push_back(edge->GetVariable(m_variables[i]));
+        replacements.push_back(edge->get_variable(m_variables[i]));
     }
     auto instance = m_template.substitute(replacements);
     m_instances[edge] = instance;
@@ -642,6 +604,23 @@ std::string expr_template::to_string() const {
 
 std::string expr_template::ExprToString() const {
     return ExprToString(m_template);
+}
+
+static std::string escape(const std::string& s) {
+    bool failed = false;
+    for (int i = 0; !failed && i < s.length(); i++) {
+        if (s[i] == '\\' || s[i] == '"')
+            failed = true;
+    }
+    std::stringstream ss;
+    for (int i = 0; i < s.length(); i++) {
+        if (s[i] != '\\' && s[i] != '"')
+            ss << s[i];
+        else {
+            ss << '\\' << s[i];
+        }
+    }
+    return ss.str();
 }
 
 std::string expr_template::ExprToString(const expr &expr) const {
@@ -679,9 +658,8 @@ std::string expr_template::ExprToString(const expr &expr) const {
         ss << ")";
         return ss.str();
     }
-    if (expr.is_var()) {
-        return m_variables[Z3_get_index_value(expr.ctx(), expr)];
-    }
+    if (expr.is_var())
+        return escape(m_variables[Z3_get_index_value(expr.ctx(), expr)]);
     std::cerr << "Unknown connective in: " << expr.to_string() << std::endl;
     exit(-1);
 }
