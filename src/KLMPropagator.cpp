@@ -555,7 +555,7 @@ std::string KLMPropagator::display_model(bool smtlib) const {
         std::string att;
 
         if (edge.second->get_state() == Connected) {
-            att = "color=\"#0000FF\"";
+            att = "color=\"#00FF00\"";
 
             if (edge.second->get_to()->is_connected(edge.second->get_from()) &&
                 edge.second->get_to()->get_connected(edge.second->get_from())->get_state() == Connected) {
@@ -565,6 +565,12 @@ std::string KLMPropagator::display_model(bool smtlib) const {
             }
         } else if (edge.second->get_state() == NonConnected) {
             att = "color=\"#FF0000\"";
+            if (edge.second->get_to()->is_none_connected(edge.second->get_from()) &&
+                edge.second->get_to()->get_none_connected(edge.second->get_from())->get_state() == NonConnected) {
+
+                covered.insert(ptr_pair<node>(edge.second->get_from(), edge.second->get_to()));
+                att = "dir=none color=\"#FF0000\"";
+            }
             /*std::stringstream ss("");
             for (const auto &variable: edge.second->get_variable()) {
                 auto it = interpretation.find(*variable.second);

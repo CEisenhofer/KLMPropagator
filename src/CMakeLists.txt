@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.16.3)
 
 add_executable(KLM
+        language.yy.cpp
+        language.tab.cpp
         KLMPropagator.cpp
         node.cpp
         Program.cpp

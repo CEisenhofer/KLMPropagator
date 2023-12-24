@@ -1,9 +1,15 @@
 #include "Program.h"
+#include "language.tab.h"
 #include <cstdlib>
-#include <cstring>
 #include <chrono>
 #include <fstream>
 #include <filesystem>
+
+z3::context* g_ctx = nullptr;
+z3::func_decl* g_node_fct = nullptr;
+z3::expr_vector* g_subterms = nullptr;
+
+unsigned parse_string(const char* in);
 
 static decltype(std::chrono::high_resolution_clock::now()) start_time;
 static decltype(std::chrono::high_resolution_clock::now()) end_time;
@@ -73,6 +79,7 @@ parse_params(const std::vector<std::string> &args, unsigned &timeout, Logic &log
     }
 }
 
+#if 0
 enum op : unsigned char {
     op_not,
     op_open,
@@ -86,21 +93,42 @@ enum op : unsigned char {
     op_close,
 };
 
+enum char_type {
+    char_ws,
+    char_alphanumeric,
+    char_single,
+    char_open,
+    char_close,
+    other,
+};
+
 static inline bool is_alphanumeric(char c) {
-    return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_' || c == '$' || c == '#';
+    return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_' || c == '$' ||
+           c == '#';
 }
 
 static inline bool is_whitespace(char c) {
     return c == ' ' || c == '\n' || c == '\r' || c == '\t';
 }
 
-static expr parse_language(context& ctx, func_decl& node_fct, const std::string& line) {
+static inline char_type get_char_type(char c) {
+    if (is_whitespace(c))
+        return char_ws;
+    if (is_alphanumeric(c))
+        return char_alphanumeric;
+    // These operators can be put directly after each other -> we have to consider them alone
+    if (c == '!' || c == '(' || c == ')')
+        return char_single;
+    return other;
+}
+
+static expr parse_language(context &ctx, func_decl &node_fct, const std::string &line) {
     std::vector<op> operator_stack;
     expr_vector output_stack(ctx);
     std::stringstream tokenizer;
     operator_stack.push_back(op_open);
 
-    auto shift = [&ctx, &node_fct, &line, &output_stack, &operator_stack, &tokenizer](){
+    auto shift = [&ctx, &node_fct, &line, &output_stack, &operator_stack, &tokenizer]() {
         std::string s = tokenizer.str();
         if (s.empty())
             return;
@@ -110,12 +138,12 @@ static expr parse_language(context& ctx, func_decl& node_fct, const std::string&
             output_stack.push_back(ctx.bool_val(true)), op1 = op_none;
         else if (s == "false")
             output_stack.push_back(ctx.bool_val(false)), op1 = op_none;
+        else if (s == "!")
+            op1 = op_not;
         else if (s == "&")
             op1 = op_and;
         else if (s == "|")
             op1 = op_or;
-        else if (s == "!")
-            op1 = op_not;
         else if (s == "=>")
             op1 = op_implies;
         else if (s == "=")
@@ -174,18 +202,18 @@ static expr parse_language(context& ctx, func_decl& node_fct, const std::string&
             if (operator_stack.empty() || operator_stack.back() != op_open)
                 throw exception(("Unmatched bracket in assertion " + line).c_str());
             operator_stack.pop_back();
-        }
-        else
+        } else
             operator_stack.push_back(op1);
     };
 
-    char prev = ' ';
-    for (int i = 0; i < line.size(); i++) {
-        if (!is_whitespace(line[i]) && (is_whitespace(prev) || is_alphanumeric(prev) == is_alphanumeric(line[i])))
-            tokenizer << line[i];
-        else
+    char_type prev = char_ws;
+    for (char i: line) {
+        const char_type curr = get_char_type(i);
+        if (prev != char_ws && (prev == char_single || curr != prev))
             shift();
-        prev = line[i];
+        if (curr != char_ws)
+            tokenizer << i;
+        prev = curr;
     }
     shift();
     tokenizer << ")"; // force evaluation of everything!
@@ -194,8 +222,23 @@ static expr parse_language(context& ctx, func_decl& node_fct, const std::string&
         throw exception(("Missing operand in assertion " + line).c_str());
     return output_stack.back();
 }
+#else
+static expr parse_language(context &ctx, func_decl &node_fct, const std::string &line) {
+    g_ctx = &ctx;
+    g_node_fct = &node_fct;
+    z3::expr_vector subterms(ctx);
+    g_subterms = &subterms;
+    unsigned i = parse_string(line.c_str());
+    expr e = subterms[i];
+    assert(i == subterms.size() - 1);
+    g_ctx = nullptr;
+    g_node_fct = nullptr;
+    g_subterms = nullptr;
+    return e;
+}
+#endif
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
     std::vector<std::string> args(argc);
     for (unsigned i = 0; i < argc; i++) {
         args[i] = argv[i];
@@ -227,8 +270,7 @@ int main(int argc, char** argv) {
     }
     if (smtlib) {
         smtlib2 = content;
-    }
-    else {
+    } else {
         expr_vector assertions(ctx);
         try {
             sort_vector domain(ctx);
@@ -250,7 +292,8 @@ int main(int argc, char** argv) {
     return 0;
 }
 
-void Solve(context &context, const std::string &smtlib2, unsigned timeout, Logic logic, bool smtlibOutput, bool visual) {
+void
+Solve(context &context, const std::string &smtlib2, unsigned timeout, Logic logic, bool smtlibOutput, bool visual) {
     sort nodeSort = context.uninterpreted_sort("Node");
 
     sort_vector domain(context);
@@ -279,7 +322,7 @@ void Solve(context &context, const std::string &smtlib2, unsigned timeout, Logic
 
     expr assertion = mk_and(expr_vector(context, parsed));
 
-    std::unordered_map<expr, expr_template*, expr_hash, expr_eq> abstraction;
+    std::unordered_map<expr, expr_template *, expr_hash, expr_eq> abstraction;
     std::unordered_map<expr, std::optional<expr>, expr_hash, expr_eq> abstractionInv;
 
     assertion = replace_nodes(assertion, nodeFct, nodeFctAbstr, nodeSort, abstraction, abstractionInv);
@@ -311,7 +354,9 @@ void Solve(context &context, const std::string &smtlib2, unsigned timeout, Logic
             std::ofstream of2("output-info.txt");
             of2 << model;
             of2.close();
-            std::cout << "Outputting graph to \"output-graph.dot\" - use dot (graphviz) to compile.\nModel written to \"output-info.txt\"" << std::endl;
+            std::cout
+                    << "Outputting graph to \"output-graph.dot\" - use dot (graphviz) to compile.\nModel written to \"output-info.txt\""
+                    << std::endl;
         }
         propagator.check_model();
     }
@@ -387,14 +432,13 @@ expr create_template(expr e, std::unordered_map<std::string, std::pair<unsigned,
 }
 
 expr replace_nodes(const expr &e, const func_decl &oldDecl, const func_decl &newDecl, const sort &nodeSort,
-                   std::unordered_map<expr, expr_template*, expr_hash, expr_eq> &abstraction,
+                   std::unordered_map<expr, expr_template *, expr_hash, expr_eq> &abstraction,
                    std::unordered_map<expr, std::optional<expr>, expr_hash, expr_eq> &abstractionInv) {
     if (Z3_is_eq_func_decl(e.ctx(), e.decl(), oldDecl)) {
         expr arg1 = e.arg(0).simplify();
         expr arg2 = e.arg(1).simplify();
         auto it = abstractionInv.find(arg1);
         expr abstr1(e.ctx()), abstr2(e.ctx());
-
         if (it == abstractionInv.end()) {
             abstr1 = e.ctx().constant(arg1.to_string().c_str(), nodeSort);
             abstractionInv[arg1] = abstr1;
