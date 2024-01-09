@@ -178,6 +178,7 @@ void KLMPropagator::AddPosConnection(edge* e1) {
 
 void KLMPropagator::AddNegConnection(edge* edge) {
     if (edge->get_from()->is_none_connected(edge->get_to()))
+        // We added this information already
         return;
 
     edge->get_from()->add_none_connected(edge->get_to(), edge);
@@ -191,16 +192,15 @@ void KLMPropagator::AddNegConnection(edge* edge) {
 
     // Propagate everything we know already as well
     // We might propagate other stuff later on
-    for (const auto &connected: edge->get_from()->get_connected())
+    for (const auto& connected: edge->get_from()->get_connected())
         PropagateMissingTrue(edge, connected.second);
     if (HasOr()) {
-        for (const auto &nonConnected: edge->get_from()->get_none_connected())
+        for (const auto& nonConnected: edge->get_from()->get_none_connected())
             PropagateMissingFalse(edge, nonConnected.second);
 
         // We might propagate pending non-entailment for other edges
-        for (const auto nonConnected: edge->get_from()->get_none_connected()) {
+        for (const auto& nonConnected: edge->get_from()->get_none_connected())
             PropagateMissingFalse(nonConnected.second, edge);
-        }
     }
 }
 

@@ -276,7 +276,7 @@ int main(int argc, char **argv) {
             sort_vector domain(ctx);
             domain.push_back(ctx.bool_sort());
             domain.push_back(ctx.bool_sort());
-            func_decl node_fct = ctx.function("node", domain, ctx.bool_sort());
+            func_decl node_fct = ctx.function("pair", domain, ctx.bool_sort());
             std::stringstream ss(content);
             std::string line;
             while (std::getline(ss, line, '\n')) {
@@ -299,20 +299,20 @@ Solve(context &context, const std::string &smtlib2, unsigned timeout, Logic logi
     sort_vector domain(context);
     domain.push_back(context.bool_sort());
     domain.push_back(context.bool_sort());
-    func_decl nodeFct = context.function("nodeReal", domain, context.bool_sort());
+    func_decl nodeFct = context.function("pairReal", domain, context.bool_sort());
 
     domain.resize(0);
     domain.push_back(nodeSort);
     domain.push_back(nodeSort);
     func_decl nodeFctAbstr = context.user_propagate_function(
-            context.str_symbol("node"), domain, context.bool_sort());
+            context.str_symbol("pair"), domain, context.bool_sort());
 
     sort_vector empty_sorts(context);
     func_decl_vector node_decl(context);
     node_decl.push_back(nodeFctAbstr);
 
     Z3_symbol decl_names[1];
-    decl_names[0] = Z3_mk_string_symbol(context, "node");
+    decl_names[0] = Z3_mk_string_symbol(context, "pair");
     Z3_func_decl decl_fcts[1];
     decl_fcts[0] = nodeFct;
 
@@ -401,7 +401,7 @@ void benchmark(Logic logic) {
         sort_vector domain(ctx);
         domain.push_back(ctx.bool_sort());
         domain.push_back(ctx.bool_sort());
-        func_decl nodeFct = ctx.function("node", domain, ctx.bool_sort());
+        func_decl nodeFct = ctx.function("pair", domain, ctx.bool_sort());
         for (const auto &pos: spec.get_positive()) {
             auto lhs = pos->get_lhs();
             auto rhs = pos->get_rhs();
