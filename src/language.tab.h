@@ -54,8 +54,7 @@ extern int yydebug;
 /* Token kinds.  */
 #ifndef YYTOKENTYPE
 # define YYTOKENTYPE
-  enum yytokentype
-  {
+enum yytokentype {
     YYEMPTY = -2,
     YYEOF = 0,                     /* "end of file"  */
     YYerror = 256,                 /* error  */
@@ -72,18 +71,17 @@ extern int yydebug;
     T_NEDGE = 267,                 /* T_NEDGE  */
     T_OPEN = 268,                  /* T_OPEN  */
     T_CLOSE = 269                  /* T_CLOSE  */
-  };
-  typedef enum yytokentype yytoken_kind_t;
+};
+typedef enum yytokentype yytoken_kind_t;
 #endif
 
 /* Value type.  */
-#if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
-union YYSTYPE
-{
+#if !defined YYSTYPE && !defined YYSTYPE_IS_DECLARED
+union YYSTYPE {
 #line 25 "language.y"
 
-	char* cval;
-	unsigned exprIdx;
+    char* cval;
+    unsigned exprIdx;
 
 #line 89 "language.tab.h"
 
@@ -97,7 +95,7 @@ typedef union YYSTYPE YYSTYPE;
 extern YYSTYPE yylval;
 
 
-int yyparse (unsigned* result);
+int yyparse(unsigned* result);
 
 
 #endif /* !YY_YY_LANGUAGE_TAB_H_INCLUDED  */

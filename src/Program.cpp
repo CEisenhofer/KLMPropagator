@@ -296,14 +296,11 @@ int main(int argc, char** argv) {
         }
         smtlib2 = to_SMTLIB(assertions);
     }
-    Solve(ctx, smtlib2, timeout, logic, smtlib, visualn
-    checkResult);
+    Solve(ctx, smtlib2, timeout, logic, smtlib, visual, checkResult);
     return 0;
 }
 
-void
-Solve(context& context, const std::string& smtlib2, unsigned timeout, Logic logic, bool smtlibOutput, bool checkResult,
-      bool visual) {
+void Solve(context& context, const std::string& smtlib2, unsigned timeout, Logic logic, bool smtlibOutput, bool visual, bool checkResult) {
     sort nodeSort = context.uninterpreted_sort("Node");
 
     sort_vector domain(context);
@@ -404,7 +401,7 @@ void benchmark(Logic logic) {
     std::cout << "Random seed: " << seed << std::endl;
     constexpr int maxVariables = 10;
     RandomFormula randomFormula(seed, maxVariables, 2, 10, 10);
-    for (int i = 0; i < 100; i++) {
+    for (int i = 0; i < 1000; i++) {
         context ctx;
         expr_vector assertions(ctx);
         Specification spec = randomFormula.gen_spec();
@@ -420,7 +417,7 @@ void benchmark(Logic logic) {
         assertions.push_back(
                 !nodeFct(spec.get_negative()->get_lhs()->ToZ3(ctx).simplify(),
                          spec.get_negative()->get_rhs()->ToZ3(ctx).simplify()));
-        Solve(ctx, to_SMTLIB(assertions), 0, logic, false, false);
+        Solve(ctx, to_SMTLIB(assertions), 0, logic, false, false, true);
     }
 }
 

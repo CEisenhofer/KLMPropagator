@@ -412,19 +412,21 @@ void KLMPropagator::check_model() {
             }
 
             // Eval - CnM
-
-            for (auto& con: e.second->get_from()->get_connected()) {
-                if (eval(con.second->get_to(), e.second) != Z3_L_FALSE)
-                    model_failed("No edge between " + e.second->get_from()->to_string() + " and " +
-                                 e.second->get_to()->to_string() + " requires " + con.second->get_to()->to_string() +
-                                 " to evaluate to false");
+            if (HasOr()) {
+                for (auto& con: e.second->get_from()->get_connected()) {
+                    if (eval(con.second->get_to(), e.second) != Z3_L_FALSE)
+                        model_failed("No edge between " + e.second->get_from()->to_string() + " and " +
+                                     e.second->get_to()->to_string() + " requires " +
+                                     con.second->get_to()->to_string() +
+                                     " to evaluate to false");
+                }
             }
         }
     }
 
     // Loop and Trans
     if (HasLoop()) {
-        bool* reachable = new bool[exprToNode.size() * exprToNode.size()];
+        bool* reachable = new bool[exprToNode.size() * exprToNode.size()] {};
         unsigned cnt = exprToNode.size();
         auto is_reachable = [reachable, cnt](unsigned from, unsigned to) {
             return reachable[cnt * from + to];
@@ -456,8 +458,11 @@ void KLMPropagator::check_model() {
 
         for (const auto& n1: exprToNode) {
             for (const auto& n2: exprToNode) {
-                if (is_reachable(nodeToId.at(n1.second), nodeToId.at(n2.second)) !=
-                    n1.second->is_transitive_out(n2.second)) {
+                bool r1 = is_reachable(nodeToId.at(n1.second), nodeToId.at(n2.second));
+                bool r2 = n1.second->is_transitive_out(n2.second);
+                if (r1 != r2) {
+                    std::cout << "r1: " << r1 << std::endl;
+                    std::cout << "r2: " << r2 << std::endl;
                     model_failed(
                             "Internal datastructure does not contain transitive edge " + n1.second->to_string() + " " +
                             n2.second->to_string());
@@ -471,8 +476,8 @@ void KLMPropagator::check_model() {
         for (const auto& e: exprToEdge) {
             if (e.second->get_state() != Connected)
                 continue;
-            bool reachable = is_reachable(nodeToId[e.second->get_to()], nodeToId[e.second->get_from()]);
-            if (reachable) {
+            bool r = is_reachable(nodeToId[e.second->get_to()], nodeToId[e.second->get_from()]);
+            if (r) {
                 for (auto& r1: exprToNode) {
                     if (!is_reachable(nodeToId[e.second->get_to()], nodeToId[r1.second]) ||
                         !is_reachable(nodeToId[r1.second], nodeToId[e.second->get_to()]))

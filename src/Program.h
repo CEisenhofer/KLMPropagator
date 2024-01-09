@@ -6,7 +6,7 @@
 
 int main(int argc, char* argv[]);
 
-void Solve(context& context, const std::string& smtlib2, unsigned timeout, Logic logic, bool smtlibOutput, bool visual);
+void Solve(context& context, const std::string& smtlib2, unsigned timeout, Logic logic, bool smtlibOutput, bool visual, bool checkResult);
 
 expr replace_nodes(const expr& e, const func_decl& oldDecl, const func_decl& newDecl, const sort& nodeSort,
                    std::unordered_map<expr, expr_template*, expr_hash, expr_eq>& abstraction,

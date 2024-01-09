@@ -7,6 +7,11 @@
 class edge;
 
 class node {
+
+#ifndef NDEBUG
+    const std::string m_name;
+#endif
+
     const expr m_label;
 
     std::unordered_map<node*, edge*> m_connected;
@@ -17,7 +22,11 @@ class node {
 
 public:
 
-    node(expr label) : m_label(std::move(label)) {}
+    node(expr label) : m_label(std::move(label))
+#ifndef NDEBUG
+    , m_name(label.to_string())
+#endif
+    {}
 
     expr get_label() const { return m_label; }
 
