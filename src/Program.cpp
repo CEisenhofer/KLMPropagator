@@ -31,8 +31,7 @@ static void crash_params() {
 }
 
 static void
-parse_params(const std::vector<std::string> &args, unsigned &timeout, Logic &logic, bool &smtlib, bool &visual,
-             bool &bench) {
+parse_params(const std::vector<std::string> &args, unsigned &timeout, Logic &logic, bool &smtlib, bool &visual, bool& checkResult, bool &bench) {
     if (args.empty() || !std::filesystem::exists(args[args.size() - 1]))
         crash_params();
 
@@ -46,6 +45,7 @@ parse_params(const std::vector<std::string> &args, unsigned &timeout, Logic &log
     logic = C;
     smtlib = false;
     visual = false;
+    checkResult = true;
     bench = false;
 
     for (int i = 0; i < args.size() - 1; i++) {
@@ -69,6 +69,9 @@ parse_params(const std::vector<std::string> &args, unsigned &timeout, Logic &log
         }
         if (args[i] == "--bench") {
             bench = true;
+        }
+        if (args[i] == "--no-check") {
+            checkResult = false;
         }
         if (args[i] == "--smtlib") {
             smtlib = true;
@@ -247,8 +250,9 @@ int main(int argc, char **argv) {
     Logic logic;
     bool smtlib;
     bool visual;
+    bool checkResult;
     bool bench;
-    parse_params(args, timeout, logic, smtlib, visual, bench);
+    parse_params(args, timeout, logic, smtlib, visual, checkResult, bench);
 
     if (bench) {
         benchmark(logic);
@@ -288,12 +292,11 @@ int main(int argc, char **argv) {
         }
         smtlib2 = to_SMTLIB(assertions);
     }
-    Solve(ctx, smtlib2, timeout, logic, smtlib, visual);
+    Solve(ctx, smtlib2, timeout, logic, smtlib, visualn checkResult);
     return 0;
 }
 
-void
-Solve(context &context, const std::string &smtlib2, unsigned timeout, Logic logic, bool smtlibOutput, bool visual) {
+void Solve(context &context, const std::string &smtlib2, unsigned timeout, Logic logic, bool smtlibOutput, bool checkResult, bool visual) {
     sort nodeSort = context.uninterpreted_sort("Node");
 
     sort_vector domain(context);

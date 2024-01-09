@@ -195,12 +195,11 @@ void KLMPropagator::AddNegConnection(edge* edge) {
     for (const auto& connected: edge->get_from()->get_connected())
         PropagateMissingTrue(edge, connected.second);
     if (HasOr()) {
-        for (const auto& nonConnected: edge->get_from()->get_none_connected())
+        for (const auto& nonConnected: edge->get_from()->get_none_connected()) {
+            // We might propagate pending non-entailment for other edges
             PropagateMissingFalse(edge, nonConnected.second);
-
-        // We might propagate pending non-entailment for other edges
-        for (const auto& nonConnected: edge->get_from()->get_none_connected())
             PropagateMissingFalse(nonConnected.second, edge);
+        }
     }
 }
 
@@ -344,7 +343,7 @@ Z3_lbool KLMPropagator::eval(const expr &e) {
     if (e.is_eq())
         return eval((!e.arg(0) || e.arg(1)) && (!e.arg(1) || e.arg(0)));
 
-    model_failed("Unexpected expression: " + e);
+    model_failed("Unexpected expression: " + e.to_string());
     assert(false);
     return Z3_L_UNDEF;
 }
@@ -355,8 +354,7 @@ Z3_lbool KLMPropagator::eval(node* n, edge* edge) {
 }
 
 void KLMPropagator::check_model() {
-    if (logic != C && logic != CL)
-        std::cout << "Warning: Currently only checking conditions for C and CL" << std::endl;
+    // Sanity check
     for (auto np: exprToNode) {
         auto n = np.second;
         if (n->get_connected().size() + n->get_none_connected().size() != exprToNode.size())
@@ -394,9 +392,10 @@ void KLMPropagator::check_model() {
             }
         }
     }
-    // Eval
+    // Eval - Cn / CnM
     for (const auto &e: exprToEdge) {
         if (e.second->get_state() == NonConnected) {
+            // Eval Cn
             if (eval(e.second->get_to(), e.second) != Z3_L_FALSE)
                 model_failed("No edge between " + e.second->get_from()->to_string() + " and " +
                              e.second->get_to()->to_string() + " requires " + e.second->get_to()->to_string() +
@@ -408,11 +407,20 @@ void KLMPropagator::check_model() {
                                  e.second->get_to()->to_string() + " requires " + con.second->get_to()->to_string() +
                                  " to evaluate to true");
             }
+
+            // Eval - CnM
+
+            for (auto &con: e.second->get_from()->get_connected()) {
+                if (eval(con.second->get_to(), e.second) != Z3_L_FALSE  )
+                    model_failed("No edge between " + e.second->get_from()->to_string() + " and " +
+                                 e.second->get_to()->to_string() + " requires " + con.second->get_to()->to_string() +
+                                 " to evaluate to false");
+            }
         }
     }
 
+    // Loop and Trans
     if (HasLoop()) {
-        // maybe unsigned and bor the already visited rows
         bool* reachable = new bool[exprToNode.size() * exprToNode.size()];
         unsigned cnt = exprToNode.size();
         auto is_reachable = [reachable, cnt](unsigned from, unsigned to) {
@@ -443,26 +451,48 @@ void KLMPropagator::check_model() {
             }
         }
 
+        for (const auto &n1: exprToNode) {
+            for (const auto& n2: exprToNode) {
+                if (is_reachable(nodeToId.at(n1.second), nodeToId.at(n2.second)) !=
+                    n1.second->is_transitive_out(n2.second)) {
+                    model_failed(
+                            "Internal datastructure does not contain transitive edge " + n1.second->to_string() + " " +
+                            n2.second->to_string());
+                }
+            }
+        }
+
         //if (!HasTrans()) { // Trans subsumes Loop; just apply only Trans
 
-        for (const auto &e: exprToEdge) {
-            if (e.second->get_state() != Connected)
-                continue;
-            if (is_reachable(nodeToId[e.second->get_to()], nodeToId[e.second->get_from()])) {
-                for (auto &r1: exprToNode) {
-                    if (!is_reachable(nodeToId[e.second->get_to()], nodeToId[r1.second]) ||
-                        !is_reachable(nodeToId[r1.second], nodeToId[e.second->get_to()]))
-                        continue;
+        // Loop
+            for (const auto& e: exprToEdge) {
+                if (e.second->get_state() != Connected)
+                    continue;
+                bool reachable = is_reachable(nodeToId[e.second->get_to()], nodeToId[e.second->get_from()]);
+                if (reachable) {
+                    for (auto& r1: exprToNode) {
+                        if (!is_reachable(nodeToId[e.second->get_to()], nodeToId[r1.second]) ||
+                            !is_reachable(nodeToId[r1.second], nodeToId[e.second->get_to()]))
+                            continue;
 
-                    for (auto &r2: r1.second->get_connected()) {
-                        if (is_reachable(nodeToId[r2.first], nodeToId[e.second->get_from()]) &&
-                            !r2.first->is_connected(r1.second)) {
-                            if (!r2.first->is_connected(r1.second))
-                                model_failed("node " + r2.first->to_string() + " should be connected to " +
-                                             r1.second->to_string() + " because of loop");
+                        for (auto& r2: r1.second->get_connected()) {
+                            if (is_reachable(nodeToId[r2.first], nodeToId[e.second->get_from()]) &&
+                                !r2.first->is_connected(r1.second)) {
+                                if (!r2.first->is_connected(r1.second))
+                                    model_failed("node " + r2.first->to_string() + " should be connected to " +
+                                                 r1.second->to_string() + " because of loop");
+                            }
                         }
                     }
                 }
+            }
+        //}
+        //else {
+        // Trans
+        if (HasTrans()) {
+            for (const auto& e1: exprToNode) {
+                if (e1.second->get_transitive_out().size() == e1.second->get_connected().size())
+                    model_failed("node " + e1.second->to_string() + " is not transitively outgoing");
             }
         }
         //}
