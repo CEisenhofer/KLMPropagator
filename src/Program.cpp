@@ -31,7 +31,8 @@ static void crash_params() {
 }
 
 static void
-parse_params(const std::vector<std::string> &args, unsigned &timeout, Logic &logic, bool &smtlib, bool &visual, bool& checkResult, bool &bench) {
+parse_params(const std::vector<std::string>& args, unsigned& timeout, Logic& logic, bool& smtlib, bool& visual,
+             bool& checkResult, bool& bench) {
     if (args.empty() || !std::filesystem::exists(args[args.size() - 1]))
         crash_params();
 
@@ -226,7 +227,8 @@ static expr parse_language(context &ctx, func_decl &node_fct, const std::string 
     return output_stack.back();
 }
 #else
-static expr parse_language(context &ctx, func_decl &node_fct, const std::string &line) {
+
+static expr parse_language(context& ctx, func_decl& node_fct, const std::string& line) {
     g_ctx = &ctx;
     g_node_fct = &node_fct;
     z3::expr_vector subterms(ctx);
@@ -239,9 +241,10 @@ static expr parse_language(context &ctx, func_decl &node_fct, const std::string 
     g_subterms = nullptr;
     return e;
 }
+
 #endif
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
     std::vector<std::string> args(argc);
     for (unsigned i = 0; i < argc; i++) {
         args[i] = argv[i];
@@ -268,13 +271,14 @@ int main(int argc, char **argv) {
         buffer << t.rdbuf();
         content = buffer.str();
     }
-    catch (std::exception &e) {
+    catch (std::exception& e) {
         std::cout << "Could not open file: " << args[0] << std::endl;
         exit(-1);
     }
     if (smtlib) {
         smtlib2 = content;
-    } else {
+    }
+    else {
         expr_vector assertions(ctx);
         try {
             sort_vector domain(ctx);
@@ -287,16 +291,19 @@ int main(int argc, char **argv) {
                 assertions.push_back(parse_language(ctx, node_fct, line));
             }
         }
-        catch (std::exception &e) {
+        catch (std::exception& e) {
             exit(-1);
         }
         smtlib2 = to_SMTLIB(assertions);
     }
-    Solve(ctx, smtlib2, timeout, logic, smtlib, visualn checkResult);
+    Solve(ctx, smtlib2, timeout, logic, smtlib, visualn
+    checkResult);
     return 0;
 }
 
-void Solve(context &context, const std::string &smtlib2, unsigned timeout, Logic logic, bool smtlibOutput, bool checkResult, bool visual) {
+void
+Solve(context& context, const std::string& smtlib2, unsigned timeout, Logic logic, bool smtlibOutput, bool checkResult,
+      bool visual) {
     sort nodeSort = context.uninterpreted_sort("Node");
 
     sort_vector domain(context);
@@ -325,7 +332,7 @@ void Solve(context &context, const std::string &smtlib2, unsigned timeout, Logic
 
     expr assertion = mk_and(expr_vector(context, parsed));
 
-    std::unordered_map<expr, expr_template *, expr_hash, expr_eq> abstraction;
+    std::unordered_map<expr, expr_template*, expr_hash, expr_eq> abstraction;
     std::unordered_map<expr, std::optional<expr>, expr_hash, expr_eq> abstractionInv;
 
     assertion = replace_nodes(assertion, nodeFct, nodeFctAbstr, nodeSort, abstraction, abstractionInv);
@@ -366,26 +373,26 @@ void Solve(context &context, const std::string &smtlib2, unsigned timeout, Logic
 }
 
 
-void get_constants(expr e, std::unordered_set<expr, expr_hash, expr_eq> &names) {
+void get_constants(expr e, std::unordered_set<expr, expr_hash, expr_eq>& names) {
     if (e.decl().decl_kind() == Z3_OP_UNINTERPRETED && e.num_args() == 0) {
         names.insert(e);
         return;
     }
-    for (const auto &arg: e.args()) {
+    for (const auto& arg: e.args()) {
         get_constants(arg, names);
     }
 }
 
-std::string to_SMTLIB(const expr_vector &assertions) {
+std::string to_SMTLIB(const expr_vector& assertions) {
     expr conj = assertions.size() == 1 ? assertions[0] : mk_and(assertions);
     std::unordered_set<expr, expr_hash, expr_eq> constants;
     get_constants(conj, constants);
     std::stringstream sb;
-    for (const auto &constant: constants) {
+    for (const auto& constant: constants) {
         sb << "(declare-const " << constant.decl().name().str() << " Bool)\n";
     }
 
-    for (const auto &assertion: assertions) {
+    for (const auto& assertion: assertions) {
         sb << "(assert " << assertion << ")\n";
     }
     return sb.str();
@@ -405,7 +412,7 @@ void benchmark(Logic logic) {
         domain.push_back(ctx.bool_sort());
         domain.push_back(ctx.bool_sort());
         func_decl nodeFct = ctx.function("pair", domain, ctx.bool_sort());
-        for (const auto &pos: spec.get_positive()) {
+        for (const auto& pos: spec.get_positive()) {
             auto lhs = pos->get_lhs();
             auto rhs = pos->get_rhs();
             assertions.push_back(nodeFct(lhs->ToZ3(ctx).simplify(), rhs->ToZ3(ctx).simplify()));
@@ -417,7 +424,7 @@ void benchmark(Logic logic) {
     }
 }
 
-expr create_template(expr e, std::unordered_map<std::string, std::pair<unsigned, std::optional<expr>>> &variables) {
+expr create_template(expr e, std::unordered_map<std::string, std::pair<unsigned, std::optional<expr>>>& variables) {
     if (e.decl().decl_kind() == Z3_OP_UNINTERPRETED && e.num_args() == 0 && e.is_bool()) {
         std::string name = e.decl().name().str();
         const auto it = variables.find(name);
@@ -434,9 +441,9 @@ expr create_template(expr e, std::unordered_map<std::string, std::pair<unsigned,
     return e.decl()(args);
 }
 
-expr replace_nodes(const expr &e, const func_decl &oldDecl, const func_decl &newDecl, const sort &nodeSort,
-                   std::unordered_map<expr, expr_template *, expr_hash, expr_eq> &abstraction,
-                   std::unordered_map<expr, std::optional<expr>, expr_hash, expr_eq> &abstractionInv) {
+expr replace_nodes(const expr& e, const func_decl& oldDecl, const func_decl& newDecl, const sort& nodeSort,
+                   std::unordered_map<expr, expr_template*, expr_hash, expr_eq>& abstraction,
+                   std::unordered_map<expr, std::optional<expr>, expr_hash, expr_eq>& abstractionInv) {
     if (Z3_is_eq_func_decl(e.ctx(), e.decl(), oldDecl)) {
         expr arg1 = e.arg(0).simplify();
         expr arg2 = e.arg(1).simplify();
@@ -448,11 +455,12 @@ expr replace_nodes(const expr &e, const func_decl &oldDecl, const func_decl &new
             std::unordered_map<std::string, std::pair<unsigned, std::optional<expr>>> variables;
             const auto templateExpr = create_template(arg1, variables);
             std::vector<std::string> variableNames = std::vector<std::string>(variables.size());
-            for (const auto &variable: variables) {
+            for (const auto& variable: variables) {
                 variableNames[variable.second.first] = variable.first;
             }
             abstraction[abstr1] = new expr_template(templateExpr, std::move(variableNames));
-        } else
+        }
+        else
             abstr1 = *it->second;
 
         it = abstractionInv.find(arg2);
@@ -463,17 +471,18 @@ expr replace_nodes(const expr &e, const func_decl &oldDecl, const func_decl &new
             std::unordered_map<std::string, std::pair<unsigned, std::optional<expr>>> variables;
             auto templateExpr = create_template(arg2, variables);
             std::vector<std::string> variableNames = std::vector<std::string>(variables.size());
-            for (const auto &variable: variables) {
+            for (const auto& variable: variables) {
                 variableNames[variable.second.first] = variable.first;
             }
             abstraction[abstr2] = new expr_template(templateExpr, std::move(variableNames));
-        } else
+        }
+        else
             abstr2 = *it->second;
 
         return newDecl(abstr1, abstr2);
     }
     expr_vector args(e.ctx());
-    for (const auto &arg: e.args()) {
+    for (const auto& arg: e.args()) {
         args.push_back(replace_nodes(arg, oldDecl, newDecl, nodeSort, abstraction, abstractionInv));
     }
     return e.decl()(args);

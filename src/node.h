@@ -1,4 +1,5 @@
 #pragma once
+
 #include <utility>
 
 #include "Helper.h"
@@ -21,18 +22,18 @@ public:
     expr get_label() const { return m_label; }
 
     bool is_connected(node* other) const {
-    	return m_connected.find(other) != m_connected.end();
-	}
+        return m_connected.find(other) != m_connected.end();
+    }
 
     bool is_none_connected(node* other) const {
-    	return m_none_connected.find(other) != m_none_connected.end();
-	}
+        return m_none_connected.find(other) != m_none_connected.end();
+    }
 
-	bool is_transitive_in(node* other) const {
+    bool is_transitive_in(node* other) const {
         return m_transitive_in.find(other) != m_transitive_in.end();
     }
 
-	bool is_transitive_out(node* other) const {
+    bool is_transitive_out(node* other) const {
         return m_transitive_out.find(other) != m_transitive_out.end();
     }
 
@@ -40,18 +41,18 @@ public:
         assert(!is_connected(n));
         assert(!is_none_connected(n));
         m_connected[n] = c;
-	}
+    }
 
     void add_none_connected(node* n, edge* c) {
         assert(!is_connected(n));
         assert(!is_none_connected(n));
         m_none_connected[n] = c;
-	}
+    }
 
     void add_transitive_in(node* n, std::vector<edge*> c) {
         assert(!is_transitive_in(n));
         m_transitive_in[n] = std::move(c);
-	}
+    }
 
     void add_transitive_out(node* n, std::vector<edge*> c) {
         assert(!is_transitive_out(n));
@@ -104,7 +105,7 @@ public:
         return m_transitive_out;
     }
 
-	const std::vector<edge*>& get_transitive_in(node* n) {
+    const std::vector<edge*>& get_transitive_in(node* n) {
         return m_transitive_in[n];
     }
 
@@ -113,17 +114,21 @@ public:
     }
 
     expr_vector get_transitive_out_just(node* n);
+
     expr_vector get_transitive_in_just(node* n);
 
     unsigned operator()() const {
         return m_label.hash();
     }
+
     bool operator==(const node& other) const {
         return m_label == other.m_label;
     }
+
     bool operator!=(const node& other) const {
         return !this->operator==(other);
     }
+
     std::string to_string() const;
 };
 
@@ -144,8 +149,11 @@ class edge {
 public:
 
     node* get_from() const { return m_from; }
+
     node* get_to() const { return m_to; }
+
     expr get_expr() const { return m_expr; }
+
     bool_state get_state() const { return m_state; }
 
     const std::unordered_map<std::string, std::optional<expr>>& get_variable() const {
@@ -164,9 +172,11 @@ public:
     bool operator==(const edge& other) const {
         return m_to == other.m_to;
     }
+
     bool operator!=(const edge& other) const {
         return !this->operator==(other);
     }
+
     unsigned operator()() const {
         return m_to->operator()();
     }

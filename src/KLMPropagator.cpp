@@ -3,7 +3,7 @@
 #include <stack>
 #include <unordered_map>
 
-KLMPropagator::KLMPropagator(solver &s, const func_decl &nodeFct, Logic logic,
+KLMPropagator::KLMPropagator(solver& s, const func_decl& nodeFct, Logic logic,
                              std::unordered_map<expr, expr_template*, expr_hash, expr_eq> abstraction) :
         user_propagator_base(&s), nodeFct(nodeFct), abstraction(std::move(abstraction)), logic(logic) {
     register_fixed();
@@ -25,7 +25,7 @@ void KLMPropagator::pop(unsigned n) {
     undoStack.erase(undoStack.begin() + size, undoStack.end());
 }
 
-void KLMPropagator::fixed(const expr &e, const expr &v) {
+void KLMPropagator::fixed(const expr& e, const expr& v) {
     try {
         // Log("Fixed: " << e << " = " << v);
         assert(!(v.is_true() && v.is_false()));
@@ -53,7 +53,7 @@ void KLMPropagator::fixed(const expr &e, const expr &v) {
         else
             AddNegConnection(edge);
     }
-    catch (const std::exception &ex) {
+    catch (const std::exception& ex) {
         std::cerr << "Exception: " << ex.what() << std::endl;
         exit(-1);
     }
@@ -69,7 +69,7 @@ void KLMPropagator::AddPosConnection(edge* e1) {
     // Eq
     if (e1->get_to()->is_connected(e1->get_from())) {
         const auto backEdge = e1->get_to()->get_connected(e1->get_from());
-        for (const auto &e2: e1->get_to()->get_connected()) {
+        for (const auto& e2: e1->get_to()->get_connected()) {
             if (e1->get_from() == e2.second->get_to())
                 continue;
             expr_vector just(ctx());
@@ -82,7 +82,7 @@ void KLMPropagator::AddPosConnection(edge* e1) {
         }
 
         // TODO: check
-        for (const auto &e2: e1->get_from()->get_connected()) {
+        for (const auto& e2: e1->get_from()->get_connected()) {
             if (e1->get_to() == e2.second->get_to())
                 continue;
             expr_vector just(ctx());
@@ -96,7 +96,7 @@ void KLMPropagator::AddPosConnection(edge* e1) {
     }
 
     // Propagate to already existing equalities
-    for (const auto &e2: e1->get_from()->get_connected()) {
+    for (const auto& e2: e1->get_from()->get_connected()) {
         if (e2.second->get_to()->is_connected(e1->get_from())) {
             expr_vector just(ctx());
             just.push_back(e1->get_expr());
@@ -110,7 +110,7 @@ void KLMPropagator::AddPosConnection(edge* e1) {
 
     // Non-Entailment (II)
     // We might propagate new stuff now
-    for (const auto &nonConnected: e1->get_from()->get_none_connected()) {
+    for (const auto& nonConnected: e1->get_from()->get_none_connected()) {
         PropagateMissingTrue(nonConnected.second, e1);
     }
 
@@ -123,11 +123,11 @@ void KLMPropagator::AddPosConnection(edge* e1) {
                 const expr_vector cycleJustExpr = e1->get_to()->get_transitive_out_just(e1->get_from());
                 // We now have at least one cycle
 
-                for (auto &r1: e1->get_to()->get_transitive_out()) {
+                for (auto& r1: e1->get_to()->get_transitive_out()) {
                     if (r1.first->is_transitive_out(e1->get_from())) {
                         // r1 seems to be on one cycle as well
 
-                        for (auto &r2: r1.first->get_connected()) {
+                        for (auto& r2: r1.first->get_connected()) {
                             if (r2.first->is_transitive_out(e1->get_from())) {
                                 // ... and r2 as well
                                 if (!r2.first->is_connected(r1.first)) {
@@ -142,21 +142,21 @@ void KLMPropagator::AddPosConnection(edge* e1) {
         }
 
         // Maintain transitive closure
-        for (auto &r1: e1->get_from()->get_transitive_in()) {
-            for (auto &r2: e1->get_to()->get_transitive_out()) {
+        for (auto& r1: e1->get_from()->get_transitive_in()) {
+            for (auto& r2: e1->get_to()->get_transitive_out()) {
                 auto s1 = r1;
                 auto s2 = r2;
                 if (!s1.first->is_transitive_out(s2.first)) {
                     assert(!s2.first->is_transitive_in(s1.first));
                     std::vector<::edge*> just(s1.first->get_transitive_out(e1->get_from()));
                     just.push_back(e1);
-                    for (const auto &e2: e1->get_to()->get_transitive_out(r2.first)) {
+                    for (const auto& e2: e1->get_to()->get_transitive_out(r2.first)) {
                         just.push_back(e2);
                     }
 
                     if (HasTrans()) {
                         expr_vector cycleJustExpr(ctx());
-                        for (const auto &expr: just) {
+                        for (const auto& expr: just) {
                             cycleJustExpr.push_back(expr->get_expr());
                         }
                         propagate(cycleJustExpr, nodeFct(s1.first->get_label(), s2.first->get_label()));
@@ -192,8 +192,9 @@ void KLMPropagator::AddNegConnection(edge* edge) {
 
     // Propagate everything we know already as well
     // We might propagate other stuff later on
-    for (const auto& connected: edge->get_from()->get_connected())
+    for (const auto& connected: edge->get_from()->get_connected()) {
         PropagateMissingTrue(edge, connected.second);
+    }
     if (HasOr()) {
         for (const auto& nonConnected: edge->get_from()->get_none_connected()) {
             // We might propagate pending non-entailment for other edges
@@ -219,7 +220,7 @@ void KLMPropagator::PropagateMissingFalse(edge* baseEdge, edge* nonConnectedEdge
     propagate(just, !abstraction[nonConnectedEdge->get_to()->get_label()]->get_instance(baseEdge));
 }
 
-void KLMPropagator::created(const expr &e) {
+void KLMPropagator::created(const expr& e) {
     try {
         if (!Z3_is_eq_func_decl(ctx(), e.decl(), nodeFct))
             return;
@@ -239,7 +240,7 @@ void KLMPropagator::created(const expr &e) {
             n1 = new node(e1);
             exprToNode[e1] = n1;
             ignoreCreated = true;
-            for (const auto &existing: exprToNode) {
+            for (const auto& existing: exprToNode) {
                 add(nodeFct(n1->get_label(), existing.second->get_label()));
                 add(nodeFct(existing.second->get_label(), n1->get_label()));
             }
@@ -253,7 +254,8 @@ void KLMPropagator::created(const expr &e) {
             add(self);
             const expr_vector empty(ctx());
             propagate(empty, self);
-        } else
+        }
+        else
             n1 = it->second;
 
         it = exprToNode.find(e2);
@@ -261,7 +263,7 @@ void KLMPropagator::created(const expr &e) {
             n2 = new node(e2);
             exprToNode[e2] = n2;
             ignoreCreated = true;
-            for (const auto &existing: exprToNode) {
+            for (const auto& existing: exprToNode) {
                 add(nodeFct(n2->get_label(), existing.second->get_label()));
                 add(nodeFct(existing.second->get_label(), n2->get_label()));
             }
@@ -275,18 +277,19 @@ void KLMPropagator::created(const expr &e) {
             add(self);
             const expr_vector empty(ctx());
             propagate(empty, self);
-        } else
+        }
+        else
             n2 = it->second;
 
         exprToEdge[e] = new edge(n1, n2, e);
     }
-    catch (const std::exception &ex) {
+    catch (const std::exception& ex) {
         std::cerr << "Exception: " << ex.what() << std::endl;
         exit(-1);
     }
 }
 
-std::string KLMPropagator::ExprToString(const node &node, bool smtlib) const {
+std::string KLMPropagator::ExprToString(const node& node, bool smtlib) const {
     if (smtlib)
         return '"' + node.to_string() + '"';
     return '"' + abstraction.find(node.get_label())->second->ExprToString() + '"';
@@ -297,7 +300,7 @@ static void model_failed(std::string msg) {
     exit(-2);
 }
 
-Z3_lbool KLMPropagator::eval(const expr &e) {
+Z3_lbool KLMPropagator::eval(const expr& e) {
     if (e.is_true())
         return Z3_L_TRUE;
     if (e.is_false())
@@ -355,7 +358,7 @@ Z3_lbool KLMPropagator::eval(node* n, edge* edge) {
 
 void KLMPropagator::check_model() {
     // Sanity check
-    for (auto np: exprToNode) {
+    for (const auto np: exprToNode) {
         auto n = np.second;
         if (n->get_connected().size() + n->get_none_connected().size() != exprToNode.size())
             model_failed("outgoing edges for " + n->to_string() + " are not fully defined");
@@ -372,16 +375,16 @@ void KLMPropagator::check_model() {
 
     }
     // Refl
-    for (const auto &n: exprToNode) {
+    for (const auto& n: exprToNode) {
         if (!n.second->is_connected(n.second) || n.second->is_none_connected(n.second))
             model_failed("Node " + n.second->to_string() + " is not reflexive");
     }
     // Eq
-    for (const auto &e: exprToEdge) {
+    for (const auto& e: exprToEdge) {
         if (
                 e.second->get_state() == Connected &&
                 e.second->get_to()->is_connected(e.second->get_from())) {
-            for (auto &con: e.second->get_from()->get_connected()) {
+            for (auto& con: e.second->get_from()->get_connected()) {
                 if (!e.second->get_to()->is_connected(con.second->get_to()) ||
                     e.second->get_to()->is_none_connected(con.second->get_to()))
                     model_failed(
@@ -393,7 +396,7 @@ void KLMPropagator::check_model() {
         }
     }
     // Eval - Cn / CnM
-    for (const auto &e: exprToEdge) {
+    for (const auto& e: exprToEdge) {
         if (e.second->get_state() == NonConnected) {
             // Eval Cn
             if (eval(e.second->get_to(), e.second) != Z3_L_FALSE)
@@ -401,7 +404,7 @@ void KLMPropagator::check_model() {
                              e.second->get_to()->to_string() + " requires " + e.second->get_to()->to_string() +
                              " to evaluate to false");
 
-            for (auto &con: e.second->get_from()->get_connected()) {
+            for (auto& con: e.second->get_from()->get_connected()) {
                 if (eval(con.second->get_to(), e.second) != Z3_L_TRUE)
                     model_failed("No edge between " + e.second->get_from()->to_string() + " and " +
                                  e.second->get_to()->to_string() + " requires " + con.second->get_to()->to_string() +
@@ -410,8 +413,8 @@ void KLMPropagator::check_model() {
 
             // Eval - CnM
 
-            for (auto &con: e.second->get_from()->get_connected()) {
-                if (eval(con.second->get_to(), e.second) != Z3_L_FALSE  )
+            for (auto& con: e.second->get_from()->get_connected()) {
+                if (eval(con.second->get_to(), e.second) != Z3_L_FALSE)
                     model_failed("No edge between " + e.second->get_from()->to_string() + " and " +
                                  e.second->get_to()->to_string() + " requires " + con.second->get_to()->to_string() +
                                  " to evaluate to false");
@@ -428,11 +431,11 @@ void KLMPropagator::check_model() {
         };
         unsigned i = 0;
         std::unordered_map<node*, unsigned> nodeToId;
-        for (const auto &n: exprToNode) {
+        for (const auto& n: exprToNode) {
             nodeToId[n.second] = i++;
         }
 
-        for (const auto &np: exprToNode) {
+        for (const auto& np: exprToNode) {
             auto n1 = np.second;
             unsigned id1 = nodeToId[n1];
             std::stack<node*> toProcess;
@@ -445,13 +448,13 @@ void KLMPropagator::check_model() {
                 if (r[id2])
                     continue;
                 r[id2] = true;
-                for (const auto &n3: n2->get_connected()) {
+                for (const auto& n3: n2->get_connected()) {
                     toProcess.push(n3.second->get_to());
                 }
             }
         }
 
-        for (const auto &n1: exprToNode) {
+        for (const auto& n1: exprToNode) {
             for (const auto& n2: exprToNode) {
                 if (is_reachable(nodeToId.at(n1.second), nodeToId.at(n2.second)) !=
                     n1.second->is_transitive_out(n2.second)) {
@@ -465,27 +468,27 @@ void KLMPropagator::check_model() {
         //if (!HasTrans()) { // Trans subsumes Loop; just apply only Trans
 
         // Loop
-            for (const auto& e: exprToEdge) {
-                if (e.second->get_state() != Connected)
-                    continue;
-                bool reachable = is_reachable(nodeToId[e.second->get_to()], nodeToId[e.second->get_from()]);
-                if (reachable) {
-                    for (auto& r1: exprToNode) {
-                        if (!is_reachable(nodeToId[e.second->get_to()], nodeToId[r1.second]) ||
-                            !is_reachable(nodeToId[r1.second], nodeToId[e.second->get_to()]))
-                            continue;
+        for (const auto& e: exprToEdge) {
+            if (e.second->get_state() != Connected)
+                continue;
+            bool reachable = is_reachable(nodeToId[e.second->get_to()], nodeToId[e.second->get_from()]);
+            if (reachable) {
+                for (auto& r1: exprToNode) {
+                    if (!is_reachable(nodeToId[e.second->get_to()], nodeToId[r1.second]) ||
+                        !is_reachable(nodeToId[r1.second], nodeToId[e.second->get_to()]))
+                        continue;
 
-                        for (auto& r2: r1.second->get_connected()) {
-                            if (is_reachable(nodeToId[r2.first], nodeToId[e.second->get_from()]) &&
-                                !r2.first->is_connected(r1.second)) {
-                                if (!r2.first->is_connected(r1.second))
-                                    model_failed("node " + r2.first->to_string() + " should be connected to " +
-                                                 r1.second->to_string() + " because of loop");
-                            }
+                    for (auto& r2: r1.second->get_connected()) {
+                        if (is_reachable(nodeToId[r2.first], nodeToId[e.second->get_from()]) &&
+                            !r2.first->is_connected(r1.second)) {
+                            if (!r2.first->is_connected(r1.second))
+                                model_failed("node " + r2.first->to_string() + " should be connected to " +
+                                             r1.second->to_string() + " because of loop");
                         }
                     }
                 }
             }
+        }
         //}
         //else {
         // Trans
@@ -504,14 +507,14 @@ void KLMPropagator::check_model() {
 std::string KLMPropagator::get_model(bool smtlib) const {
     std::stringstream sb;
     sb << "Edges:\n";
-    for (const auto &edge: exprToEdge) {
+    for (const auto& edge: exprToEdge) {
         if (edge.second->get_state() == Connected)
             sb << ExprToString(*edge.second->get_from(), smtlib) << " -> "
                << ExprToString(*edge.second->get_to(), smtlib) << "\n";
         else if (edge.second->get_state() == NonConnected) {
             sb << ExprToString(*edge.second->get_from(), smtlib) << " -/> "
                << ExprToString(*edge.second->get_to(), smtlib) << "\n";
-            for (const auto &variable: edge.second->get_variable()) {
+            for (const auto& variable: edge.second->get_variable()) {
                 auto it = interpretation.find(*variable.second);
                 if (it != interpretation.end())
                     sb << "\t" << variable.first << " = " << (it->second ? "true" : "false") << "\n";
@@ -531,25 +534,25 @@ struct ptr_pair {
 
     ptr_pair(T* p1, T* p2) noexcept: p1(p1), p2(p2) {}
 
-    ptr_pair(ptr_pair &&other) noexcept: p1(other.p1), p2(other.p2) {
+    ptr_pair(ptr_pair&& other) noexcept: p1(other.p1), p2(other.p2) {
         other.p1 = nullptr;
         other.p2 = nullptr;
     }
 
-    ptr_pair(const ptr_pair &other) : p1(other.p1), p2(other.p2) {}
+    ptr_pair(const ptr_pair& other) : p1(other.p1), p2(other.p2) {}
 
-    bool operator==(const ptr_pair<T> &other) const {
+    bool operator==(const ptr_pair<T>& other) const {
         return p1 == other.p1 && p2 == other.p2;
     }
 
-    bool operator!=(const ptr_pair<T> &other) const {
+    bool operator!=(const ptr_pair<T>& other) const {
         return !this->operator==(other);
     }
 };
 
 template<>
 struct std::hash<ptr_pair<node>> {
-    size_t operator()(const ptr_pair<node> &o) const {
+    size_t operator()(const ptr_pair<node>& o) const {
         return (size_t) ((uint64_t) o.p1 * 17 ^ (uint64_t) o.p2);
     }
 };
@@ -562,7 +565,7 @@ std::string KLMPropagator::display_model(bool smtlib) const {
     std::unordered_set<ptr_pair<node>> covered;
 
     std::unordered_map<node*, std::string> nodeMap;
-    for (const auto &edge: exprToEdge) {
+    for (const auto& edge: exprToEdge) {
         if (covered.find(ptr_pair<node>(edge.second->get_to(), edge.second->get_from())) != covered.end())
             continue;
 
@@ -572,14 +575,16 @@ std::string KLMPropagator::display_model(bool smtlib) const {
             from_node = ExprToString(*edge.second->get_from(), smtlib);
             ss << from_node << ";\n";
             nodeMap[edge.second->get_from()] = from_node;
-        } else
+        }
+        else
             from_node = from_it->second;
         auto to_it = nodeMap.find(edge.second->get_to());
         if (to_it == nodeMap.end()) {
             to_node = ExprToString(*edge.second->get_to(), smtlib);
             ss << to_node << ";\n";
             nodeMap[edge.second->get_to()] = to_node;
-        } else
+        }
+        else
             to_node = to_it->second;
 
         std::string att;
@@ -593,7 +598,8 @@ std::string KLMPropagator::display_model(bool smtlib) const {
                 covered.insert(ptr_pair<node>(edge.second->get_from(), edge.second->get_to()));
                 att = "dir=none color=\"#00FF00\"";
             }
-        } else if (edge.second->get_state() == NonConnected) {
+        }
+        else if (edge.second->get_state() == NonConnected) {
             att = "color=\"#FF0000\"";
             if (edge.second->get_to()->is_none_connected(edge.second->get_from()) &&
                 edge.second->get_to()->get_none_connected(edge.second->get_from())->get_state() == NonConnected) {
@@ -616,7 +622,7 @@ std::string KLMPropagator::display_model(bool smtlib) const {
     return ss.str();
 }
 
-expr_template::expr_template(expr temp, std::vector<std::string> &&variables) : m_template(std::move(temp)),
+expr_template::expr_template(expr temp, std::vector<std::string>&& variables) : m_template(std::move(temp)),
                                                                                 m_variables(variables) {
 }
 
@@ -659,7 +665,7 @@ static std::string escape(const std::string& s) {
     return ss.str();
 }
 
-std::string expr_template::ExprToString(const expr &expr) const {
+std::string expr_template::ExprToString(const expr& expr) const {
     if (expr.is_false())
         return "false";
     if (expr.is_true())
@@ -677,8 +683,9 @@ std::string expr_template::ExprToString(const expr &expr) const {
             return ExprToString(expr.arg(0));
         std::stringstream ss;
         ss << "(" << ExprToString(expr.arg(0));
-        for (unsigned i = 1; i < expr.num_args(); i++)
+        for (unsigned i = 1; i < expr.num_args(); i++) {
             ss << " & " << ExprToString(expr.arg(i));
+        }
         ss << ")";
         return ss.str();
     }
@@ -689,8 +696,9 @@ std::string expr_template::ExprToString(const expr &expr) const {
             return ExprToString(expr.arg(0));
         std::stringstream ss;
         ss << "(" << ExprToString(expr.arg(0));
-        for (unsigned i = 1; i < expr.num_args(); i++)
+        for (unsigned i = 1; i < expr.num_args(); i++) {
             ss << " | " << ExprToString(expr.arg(i));
+        }
         ss << ")";
         return ss.str();
     }

@@ -3,12 +3,12 @@
 NodeSpecification::NodeSpecification(Formula* lhs, Formula* rhs) : m_lhs(lhs), m_rhs(rhs) {
 }
 
-NodeSpecification::NodeSpecification(NodeSpecification &&other) : m_lhs(other.m_lhs), m_rhs(other.m_rhs) {
+NodeSpecification::NodeSpecification(NodeSpecification&& other) : m_lhs(other.m_lhs), m_rhs(other.m_rhs) {
     other.m_lhs = nullptr;
     other.m_rhs = nullptr;
 }
 
-NodeSpecification &NodeSpecification::operator=(NodeSpecification &&other) noexcept {
+NodeSpecification& NodeSpecification::operator=(NodeSpecification&& other) noexcept {
     m_lhs = other.m_lhs;
     m_rhs = other.m_rhs;
     other.m_lhs = nullptr;
@@ -22,7 +22,7 @@ NodeSpecification::~NodeSpecification() {
     m_lhs = m_rhs = nullptr;
 }
 
-bool NodeSpecification::operator==(const NodeSpecification &other) const {
+bool NodeSpecification::operator==(const NodeSpecification& other) const {
     return other.m_lhs->operator==(m_lhs) && other.m_rhs->operator==(m_rhs);
 }
 
@@ -34,7 +34,7 @@ std::string NodeSpecification::to_string() const {
     return "(" + m_lhs->to_string() + ", " + m_rhs->to_string() + ")";
 }
 
-Specification::Specification(std::vector<NodeSpecification*> &&positive, NodeSpecification* negative) :
+Specification::Specification(std::vector<NodeSpecification*>&& positive, NodeSpecification* negative) :
         m_positive(positive), m_negative(negative) {
 }
 
@@ -44,8 +44,9 @@ std::string Specification::to_string() const {
         ss << "true";
     else
         ss << m_positive[0]->to_string();
-    for (int i = 1; i < m_positive.size(); i++)
+    for (int i = 1; i < m_positive.size(); i++) {
         ss << ", " << m_positive[i]->to_string();
+    }
     ss << " => " << m_negative->to_string();
     return ss.str();
 }
@@ -124,7 +125,8 @@ Formula* RandomFormula::GenAnd(int depth) {
                     atom = (Atom*) args[i];
             } while (atoms.find(atom) != atoms.end());
             atoms.insert(atom);
-        } else
+        }
+        else
             args[i] = GenOr(depth + 1);
     }
     return new And(std::move(args));
@@ -148,30 +150,31 @@ Formula* RandomFormula::GenOr(int depth) {
                     atom = (Atom*) args[i];
             } while (atoms.find(atom) != atoms.end());
             atoms.insert(atom);
-        } else
+        }
+        else
             args[i] = GenAnd(depth + 1);
     }
     return new Or(std::move(args));
 }
 
-expr Atom::ToZ3(context &ctx) const {
+expr Atom::ToZ3(context& ctx) const {
     return ctx.bool_const(("V" + std::to_string(m_id + 1)).c_str());
 }
 
 Negation::Negation(Formula* formula) : m_formula(formula) {
 }
 
-Negation::Negation(Negation &&other) : m_formula(other.m_formula) {
+Negation::Negation(Negation&& other) : m_formula(other.m_formula) {
     m_formula = nullptr;
 }
 
-Negation &Negation::operator=(Negation &&other) {
+Negation& Negation::operator=(Negation&& other) {
     m_formula = other.m_formula;
     other.m_formula = nullptr;
     return *this;
 }
 
-expr Negation::ToZ3(context &ctx) const {
+expr Negation::ToZ3(context& ctx) const {
     return !m_formula->ToZ3(ctx);
 }
 
@@ -181,7 +184,7 @@ bool Negation::operator==(const Formula* other) const {
     return false;
 }
 
-bool Negation::operator==(const Negation &other) const {
+bool Negation::operator==(const Negation& other) const {
     return m_formula->operator==(other.m_formula);
 }
 
@@ -193,19 +196,19 @@ std::string Negation::to_string() const {
     return "!" + m_formula->to_string();
 }
 
-And::And(std::vector<Formula*> &&args) : m_args(args) {}
+And::And(std::vector<Formula*>&& args) : m_args(args) {}
 
-And::And(And &&other) : m_args(other.m_args) {
+And::And(And&& other) : m_args(other.m_args) {
     other.m_args.resize(0);
 }
 
-And &And::operator=(And &&other) {
+And& And::operator=(And&& other) {
     m_args = std::move(other.m_args);
     other.m_args.resize(0);
     return *this;
 }
 
-expr And::ToZ3(context &ctx) const {
+expr And::ToZ3(context& ctx) const {
     expr_vector z3Args(ctx);
     for (unsigned i = 0; i < m_args.size(); i++) {
         expr arg = m_args[i]->ToZ3(ctx);
@@ -214,7 +217,8 @@ expr And::ToZ3(context &ctx) const {
             for (unsigned j = 0; j < arg_cnt; j++) {
                 z3Args.push_back(arg.arg(j));
             }
-        } else
+        }
+        else
             z3Args.push_back(arg);
     }
     return mk_and(z3Args);
@@ -226,22 +230,23 @@ bool And::operator==(const Formula* other) const {
     return false;
 }
 
-bool And::operator==(const And &other) const {
+bool And::operator==(const And& other) const {
     if (m_args.size() != other.m_args.size())
         return false;
-    for (unsigned i = 0; i < m_args.size(); i++)
+    for (unsigned i = 0; i < m_args.size(); i++) {
         if (m_args[i]->operator!=(other.m_args[i]))
             return false;
+    }
     return true;
 }
 
-bool And::operator!=(const And &other) const {
+bool And::operator!=(const And& other) const {
     return !operator==(other);
 }
 
 unsigned And::operator()() const {
     unsigned res = 19;
-    for (const auto &arg: m_args) {
+    for (const auto& arg: m_args) {
         res = 23 * res + arg->operator()();
     }
     return res;
@@ -252,25 +257,26 @@ std::string And::to_string() const {
         return "true";
     std::stringstream ss;
     ss << "(" << m_args[0]->to_string();
-    for (unsigned i = 1; i < m_args.size(); i++)
+    for (unsigned i = 1; i < m_args.size(); i++) {
         ss << " && " << m_args[i]->to_string();
+    }
     ss << ")";
     return ss.str();
 }
 
-Or::Or(std::vector<Formula*> &&args) : m_args(args) {}
+Or::Or(std::vector<Formula*>&& args) : m_args(args) {}
 
-Or::Or(Or &&other) : m_args(other.m_args) {
+Or::Or(Or&& other) : m_args(other.m_args) {
     other.m_args.resize(0);
 }
 
-Or &Or::operator=(Or &&other) {
+Or& Or::operator=(Or&& other) {
     m_args = std::move(other.m_args);
     other.m_args.resize(0);
     return *this;
 }
 
-expr Or::ToZ3(context &ctx) const {
+expr Or::ToZ3(context& ctx) const {
     expr_vector z3Args(ctx);
     for (unsigned i = 0; i < m_args.size(); i++) {
         expr arg = m_args[i]->ToZ3(ctx);
@@ -279,7 +285,8 @@ expr Or::ToZ3(context &ctx) const {
             for (unsigned j = 0; j < arg_cnt; j++) {
                 z3Args.push_back(arg.arg(j));
             }
-        } else
+        }
+        else
             z3Args.push_back(arg);
     }
     return mk_or(z3Args);
@@ -291,22 +298,23 @@ bool Or::operator==(const Formula* other) const {
     return false;
 }
 
-bool Or::operator==(const Or &other) const {
+bool Or::operator==(const Or& other) const {
     if (m_args.size() != other.m_args.size())
         return false;
-    for (unsigned i = 0; i < m_args.size(); i++)
+    for (unsigned i = 0; i < m_args.size(); i++) {
         if (m_args[i]->operator!=(other.m_args[i]))
             return false;
+    }
     return true;
 }
 
-bool Or::operator!=(const Or &other) const {
+bool Or::operator!=(const Or& other) const {
     return !operator==(other);
 }
 
 unsigned Or::operator()() const {
     unsigned res = 29;
-    for (const auto &arg: m_args) {
+    for (const auto& arg: m_args) {
         res = 31 * res + arg->operator()();
     }
     return res;
@@ -318,8 +326,9 @@ std::string Or::to_string() const {
 
     std::stringstream ss;
     ss << "(" << m_args[0]->to_string();
-    for (unsigned i = 1; i < m_args.size(); i++)
+    for (unsigned i = 1; i < m_args.size(); i++) {
         ss << " || " << m_args[i]->to_string();
+    }
     ss << ")";
     return ss.str();
 }

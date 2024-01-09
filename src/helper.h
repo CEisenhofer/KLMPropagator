@@ -20,13 +20,13 @@ enum Logic : unsigned char {
 
 using namespace z3;
 
-inline bool starts_with(std::string const &s, std::string const &v) {
+inline bool starts_with(std::string const& s, std::string const& v) {
     if (v.size() > s.size())
         return false;
     return std::equal(v.begin(), v.end(), s.begin());
 }
 
-inline bool ends_with(std::string const &s, std::string const &v) {
+inline bool ends_with(std::string const& s, std::string const& v) {
     if (v.size() > s.size())
         return false;
     return std::equal(v.rbegin(), v.rend(), s.rbegin());
@@ -35,7 +35,7 @@ inline bool ends_with(std::string const &s, std::string const &v) {
 template<typename T>
 class pointer_hash {
 public:
-    std::size_t operator()(T* const &p) const {
+    std::size_t operator()(T* const& p) const {
         return p->operator()();
     }
 };
@@ -43,21 +43,21 @@ public:
 template<typename T>
 class pointer_eq {
 public:
-    bool operator()(T* const &lhs, T* const &rhs) const {
+    bool operator()(T* const& lhs, T* const& rhs) const {
         return *lhs == *rhs;
     }
 };
 
 class expr_hash {
 public:
-    std::size_t operator()(expr const &p) const {
+    std::size_t operator()(expr const& p) const {
         return p.hash();
     }
 };
 
 class expr_eq {
 public:
-    bool operator()(expr const &lhs, expr const &rhs) const {
+    bool operator()(expr const& lhs, expr const& rhs) const {
         return eq(lhs, rhs);
     }
 };

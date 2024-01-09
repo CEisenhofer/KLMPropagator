@@ -21,11 +21,11 @@ public:
 
     NodeSpecification(Formula* lhs, Formula* rhs);
 
-    NodeSpecification(const NodeSpecification &other) = default;
+    NodeSpecification(const NodeSpecification& other) = default;
 
-    NodeSpecification(NodeSpecification &&other);
+    NodeSpecification(NodeSpecification&& other);
 
-    NodeSpecification &operator=(NodeSpecification &&other) noexcept;
+    NodeSpecification& operator=(NodeSpecification&& other) noexcept;
 
     ~NodeSpecification();
 
@@ -37,9 +37,9 @@ public:
         return m_rhs;
     }
 
-    bool operator==(const NodeSpecification &other) const;
+    bool operator==(const NodeSpecification& other) const;
 
-    bool operator!=(const NodeSpecification &other) const {
+    bool operator!=(const NodeSpecification& other) const {
         return !operator==(other);
     }
 
@@ -50,7 +50,7 @@ public:
 
 template<>
 struct std::hash<NodeSpecification> {
-    unsigned operator()(const NodeSpecification &n) const {
+    unsigned operator()(const NodeSpecification& n) const {
         return n();
     }
 };
@@ -61,14 +61,14 @@ class Specification {
 
 public:
 
-    Specification(std::vector<NodeSpecification*> &&positive, NodeSpecification* negative);
+    Specification(std::vector<NodeSpecification*>&& positive, NodeSpecification* negative);
 
-    Specification(Specification &&other) : m_positive(other.m_positive), m_negative(other.m_negative) {
+    Specification(Specification&& other) : m_positive(other.m_positive), m_negative(other.m_negative) {
         other.m_positive.resize(0);
         other.m_negative = nullptr;
     }
 
-    const std::vector<NodeSpecification*> &get_positive() const {
+    const std::vector<NodeSpecification*>& get_positive() const {
         return m_positive;
     }
 
@@ -109,7 +109,7 @@ class Formula {
 public:
     virtual ~Formula() = default;
 
-    virtual expr ToZ3(context &context) const = 0;
+    virtual expr ToZ3(context& context) const = 0;
 
     virtual bool operator==(const Formula* other) const = 0;
 
@@ -128,7 +128,7 @@ class Atom : public Formula {
 public:
     Atom(unsigned id) : m_id(id) {}
 
-    expr ToZ3(context &ctx) const override;
+    expr ToZ3(context& ctx) const override;
 
     bool operator==(const Formula* other) const override {
         if (typeid(*other) == typeid(Atom))
@@ -136,11 +136,11 @@ public:
         return false;
     }
 
-    bool operator==(const Atom &other) const {
+    bool operator==(const Atom& other) const {
         return m_id == other.m_id;
     }
 
-    bool operator!=(const Atom &other) const {
+    bool operator!=(const Atom& other) const {
         return !operator==(other);
     }
 
@@ -159,9 +159,9 @@ class Negation : public Formula {
 public:
     Negation(Formula* formula);
 
-    Negation(Negation &&other);
+    Negation(Negation&& other);
 
-    Negation& operator=(Negation &&other);
+    Negation& operator=(Negation&& other);
 
     ~Negation() override {
         delete m_formula;
@@ -172,11 +172,11 @@ public:
         return m_formula;
     }
 
-    expr ToZ3(context &ctx) const override;
+    expr ToZ3(context& ctx) const override;
 
     bool operator==(const Formula* other) const override;
 
-    bool operator==(const Negation &other) const;
+    bool operator==(const Negation& other) const;
 
     unsigned operator()() const override;
 
@@ -187,25 +187,26 @@ class And : public Formula {
     std::vector<Formula*> m_args;
 
 public:
-    And(std::vector<Formula*> &&args);
+    And(std::vector<Formula*>&& args);
 
-    And(And &&other);
+    And(And&& other);
 
     ~And() override {
-        for (auto &arg: m_args)
+        for (auto& arg: m_args) {
             delete arg;
+        }
         m_args.resize(0);
     }
 
-    And& operator=(And &&other);
+    And& operator=(And&& other);
 
-    expr ToZ3(context &ctx) const override;
+    expr ToZ3(context& ctx) const override;
 
     bool operator==(const Formula* other) const override;
 
-    bool operator==(const And &other) const;
+    bool operator==(const And& other) const;
 
-    bool operator!=(const And &other) const;
+    bool operator!=(const And& other) const;
 
     unsigned operator()() const override;
 
@@ -216,25 +217,26 @@ class Or : public Formula {
     std::vector<Formula*> m_args;
 
 public:
-    Or(std::vector<Formula*> &&args);
+    Or(std::vector<Formula*>&& args);
 
-    Or(Or &&other);
+    Or(Or&& other);
 
     ~Or() override {
-        for (auto &arg: m_args)
+        for (auto& arg: m_args) {
             delete arg;
+        }
         m_args.resize(0);
     }
 
-    Or& operator=(Or &&other);
+    Or& operator=(Or&& other);
 
-    expr ToZ3(context &ctx) const override;
+    expr ToZ3(context& ctx) const override;
 
     bool operator==(const Formula* other) const override;
 
-    bool operator==(const Or &other) const;
+    bool operator==(const Or& other) const;
 
-    bool operator!=(const Or &other) const;
+    bool operator!=(const Or& other) const;
 
     unsigned operator()() const override;
 
