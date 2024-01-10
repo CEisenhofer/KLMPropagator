@@ -8,6 +8,7 @@
 z3::context* g_ctx = nullptr;
 z3::func_decl* g_node_fct = nullptr;
 z3::expr_vector* g_subterms = nullptr;
+bool g_fail_on_error = true;
 
 unsigned parse_string(const char* in);
 
@@ -31,7 +32,7 @@ static void crash_params() {
 }
 
 static void
-parse_params(const std::vector<std::string>& args, unsigned& timeout, Logic& logic, bool& smtlib, bool& visual,
+parse_params(const std::vector<std::string>& args, unsigned& timeout, Logic& logic, language& language, bool& visual,
              bool& checkResult, bool& bench) {
     if (args.empty() || !std::filesystem::exists(args[args.size() - 1]))
         crash_params();
@@ -44,7 +45,7 @@ parse_params(const std::vector<std::string>& args, unsigned& timeout, Logic& log
 
     timeout = 0;
     logic = C;
-    smtlib = false;
+    language = lang_auto;
     visual = false;
     checkResult = true;
     bench = false;
@@ -74,8 +75,14 @@ parse_params(const std::vector<std::string>& args, unsigned& timeout, Logic& log
         if (args[i] == "--no-check") {
             checkResult = false;
         }
-        if (args[i] == "--smtlib") {
-            smtlib = true;
+        if (args[i] == "--auto") {
+            language = lang_auto;
+        }
+        if (args[i] == "--smtlib" || args[i] == "--lang_smtlib2") {
+            language = lang_smtlib2;
+        }
+        if (args[i] == "--custom") {
+            language = lang_custom;
         }
         if (args[i] == "--visual") {
             visual = true;
@@ -228,11 +235,13 @@ static expr parse_language(context &ctx, func_decl &node_fct, const std::string 
 }
 #else
 
-static expr parse_language(context& ctx, func_decl& node_fct, const std::string& line) {
+static expr parse_language(context& ctx, func_decl& node_fct, const std::string& line, const language language) {
+    assert(language == lang_custom || language == lang_auto);
     g_ctx = &ctx;
     g_node_fct = &node_fct;
     z3::expr_vector subterms(ctx);
     g_subterms = &subterms;
+    g_fail_on_error = language == lang_custom;
     unsigned i = parse_string(line.c_str());
     expr e = subterms[i];
     assert(i == subterms.size() - 1);
@@ -251,11 +260,11 @@ int main(int argc, char** argv) {
     }
     unsigned timeout;
     Logic logic;
-    bool smtlib;
+    language language;
     bool visual;
     bool checkResult;
     bool bench;
-    parse_params(args, timeout, logic, smtlib, visual, checkResult, bench);
+    parse_params(args, timeout, logic, language, visual, checkResult, bench);
 
     if (bench) {
         benchmark(logic);
@@ -275,67 +284,79 @@ int main(int argc, char** argv) {
         std::cout << "Could not open file: " << args[0] << std::endl;
         exit(-1);
     }
-    if (smtlib) {
-        smtlib2 = content;
-    }
-    else {
+    smtlib2 = content;
+    if (language != lang_smtlib2) {
         expr_vector assertions(ctx);
         try {
             sort_vector domain(ctx);
             domain.push_back(ctx.bool_sort());
             domain.push_back(ctx.bool_sort());
-            func_decl node_fct = ctx.function("pair", domain, ctx.bool_sort());
+            func_decl node_fct = ctx.function("edge", domain, ctx.bool_sort());
             std::stringstream ss(content);
             std::string line;
             while (std::getline(ss, line, '\n')) {
-                assertions.push_back(parse_language(ctx, node_fct, line));
+                assertions.push_back(parse_language(ctx, node_fct, line, language));
             }
+            std::flush(std::cout);
+
+            smtlib2 = to_SMTLIB(assertions);
+            language = lang_custom;
         }
         catch (std::exception& e) {
-            exit(-1);
+            if (language != lang_auto)
+                exit(-1);
+
+            smtlib2 = content;
+            language = lang_smtlib2;
         }
-        smtlib2 = to_SMTLIB(assertions);
     }
-    Solve(ctx, smtlib2, timeout, logic, smtlib, visual, checkResult);
+    Solve(ctx, smtlib2, timeout, logic, language, visual, checkResult);
     return 0;
 }
 
-void Solve(context& context, const std::string& smtlib2, unsigned timeout, Logic logic, bool smtlibOutput, bool visual, bool checkResult) {
+void Solve(context& context, const std::string& smtlib2, unsigned timeout, Logic logic, language outputLanguage, bool visual, bool checkResult) {
+    assert(outputLanguage != lang_auto);
     sort nodeSort = context.uninterpreted_sort("Node");
 
     sort_vector domain(context);
     domain.push_back(context.bool_sort());
     domain.push_back(context.bool_sort());
-    func_decl nodeFct = context.function("pairReal", domain, context.bool_sort());
+    func_decl nodeFct = context.function("edgeReal", domain, context.bool_sort());
 
     domain.resize(0);
     domain.push_back(nodeSort);
     domain.push_back(nodeSort);
     func_decl nodeFctAbstr = context.user_propagate_function(
-            context.str_symbol("pair"), domain, context.bool_sort());
+            context.str_symbol("edge"), domain, context.bool_sort());
 
     sort_vector empty_sorts(context);
     func_decl_vector node_decl(context);
     node_decl.push_back(nodeFctAbstr);
 
     Z3_symbol decl_names[1];
-    decl_names[0] = Z3_mk_string_symbol(context, "pair");
+    decl_names[0] = Z3_mk_string_symbol(context, "edge");
     Z3_func_decl decl_fcts[1];
     decl_fcts[0] = nodeFct;
 
     auto parsed = Z3_parse_smtlib2_string(context, smtlib2.c_str(), 0, nullptr, nullptr, 1, decl_names, decl_fcts);
-    if (Z3_get_error_code(context) != Z3_error_code::Z3_OK)
-        throw z3::exception(Z3_get_error_msg(context, Z3_get_error_code(context)));
+    if (Z3_get_error_code(context) != Z3_error_code::Z3_OK) {
+        std::cout << "Parsing failed: " << Z3_get_error_msg(context, Z3_get_error_code(context)) << std::endl;
+        exit(-1);
+    }
 
     expr assertion = mk_and(expr_vector(context, parsed));
 
-    std::unordered_map<expr, expr_template*, expr_hash, expr_eq> abstraction;
-    std::unordered_map<expr, std::optional<expr>, expr_hash, expr_eq> abstractionInv;
+    std::unordered_map<expr, expr_template*> abstraction;
+    std::unordered_map<expr, std::optional<expr>> abstractionInv;
+    bool has_theories = false;
 
-    assertion = replace_nodes(assertion, nodeFct, nodeFctAbstr, nodeSort, abstraction, abstractionInv);
+    assertion = replace_nodes(assertion, nodeFct, nodeFctAbstr, nodeSort, abstraction, abstractionInv, has_theories);
 
     params param(context);
     param.set("smt.phase_selection", 1u);
+#ifdef EXP_THEORIES
+    param.set("model.user_propagator_functions", true);
+#endif
     param.set("solver.timeout", timeout);
 
     solver solver(context);
@@ -351,26 +372,32 @@ void Solve(context& context, const std::string& smtlib2, unsigned timeout, Logic
     std::cout << res << " in " << time << "mrs" << std::endl;
     if (res == sat) {
         std::cout << std::endl;
-        std::string model = propagator.get_model(smtlibOutput);
-        std::cout << model << std::endl;
+        z3::model m = solver.get_model();
+        std::string modelString = propagator.get_model(m, outputLanguage == lang_smtlib2);
+        std::cout << modelString << std::endl;
         if (visual) {
-            std::string s = propagator.display_model(smtlibOutput);
+            std::string s = propagator.display_model(m, outputLanguage == lang_smtlib2);
             std::ofstream of("output-graph.dot");
             of << s;
             of.close();
             std::ofstream of2("output-info.txt");
-            of2 << model;
+            of2 << modelString;
             of2.close();
             std::cout
                     << "Outputting graph to \"output-graph.dot\" - use dot (graphviz) to compile.\nModel written to \"output-info.txt\""
                     << std::endl;
         }
-        propagator.check_model();
+        if (checkResult) {
+            if (has_theories)
+                std::cout << "Skipping model checking because input contains theories - unimplemented" << std::endl;
+            else
+                propagator.check_model();
+        }
     }
 }
 
 
-void get_constants(expr e, std::unordered_set<expr, expr_hash, expr_eq>& names) {
+void get_constants(expr e, std::unordered_set<expr>& names) {
     if (e.decl().decl_kind() == Z3_OP_UNINTERPRETED && e.num_args() == 0) {
         names.insert(e);
         return;
@@ -382,7 +409,7 @@ void get_constants(expr e, std::unordered_set<expr, expr_hash, expr_eq>& names) 
 
 std::string to_SMTLIB(const expr_vector& assertions) {
     expr conj = assertions.size() == 1 ? assertions[0] : mk_and(assertions);
-    std::unordered_set<expr, expr_hash, expr_eq> constants;
+    std::unordered_set<expr> constants;
     get_constants(conj, constants);
     std::stringstream sb;
     for (const auto& constant: constants) {
@@ -408,7 +435,7 @@ void benchmark(Logic logic) {
         sort_vector domain(ctx);
         domain.push_back(ctx.bool_sort());
         domain.push_back(ctx.bool_sort());
-        func_decl nodeFct = ctx.function("pair", domain, ctx.bool_sort());
+        func_decl nodeFct = ctx.function("edge", domain, ctx.bool_sort());
         for (const auto& pos: spec.get_positive()) {
             auto lhs = pos->get_lhs();
             auto rhs = pos->get_rhs();
@@ -417,31 +444,37 @@ void benchmark(Logic logic) {
         assertions.push_back(
                 !nodeFct(spec.get_negative()->get_lhs()->ToZ3(ctx).simplify(),
                          spec.get_negative()->get_rhs()->ToZ3(ctx).simplify()));
-        Solve(ctx, to_SMTLIB(assertions), 0, logic, false, false, true);
+        Solve(ctx, to_SMTLIB(assertions), 0, logic, lang_custom, false, true);
     }
 }
 
-expr create_template(expr e, std::unordered_map<std::string, std::pair<unsigned, std::optional<expr>>>& variables) {
-    if (e.decl().decl_kind() == Z3_OP_UNINTERPRETED && e.num_args() == 0 && e.is_bool()) {
+expr create_template(expr e, std::unordered_map<std::string, std::pair<unsigned, std::optional<expr>>>& variables, bool& has_theories) {
+    if (e.decl().decl_kind() == Z3_OP_UNINTERPRETED) {
+        if (e.num_args() > 0) {
+            std::cout << "Currently only 0-ary functions/predicates are supported. (substitution would fail - changing instantiation function to a slower way required)" << std::endl;
+            exit(-1);
+        }
         std::string name = e.decl().name().str();
         const auto it = variables.find(name);
         if (it != variables.end())
             return *it->second.second;
-        expr varRes = e.ctx().variable((unsigned) variables.size(), e.ctx().bool_sort());
-        variables[name] = std::make_pair(variables.size(), varRes);
+        sort s = e.get_sort();
+        has_theories |= !e.is_bool();
+        expr varRes = e.ctx().variable((unsigned)variables.size(), s);
+        variables[name] = std::make_pair((unsigned)variables.size(), varRes);
         return varRes;
     }
     expr_vector args(e.ctx());
     for (unsigned i = 0; i < e.num_args(); i++) {
-        args.push_back(create_template(e.arg(i), variables));
+        args.push_back(create_template(e.arg(i), variables, has_theories));
     }
     return e.decl()(args);
 }
 
 expr replace_nodes(const expr& e, const func_decl& oldDecl, const func_decl& newDecl, const sort& nodeSort,
-                   std::unordered_map<expr, expr_template*, expr_hash, expr_eq>& abstraction,
-                   std::unordered_map<expr, std::optional<expr>, expr_hash, expr_eq>& abstractionInv) {
-    if (Z3_is_eq_func_decl(e.ctx(), e.decl(), oldDecl)) {
+                   std::unordered_map<expr, expr_template*>& abstraction,
+                   std::unordered_map<expr, std::optional<expr>>& abstractionInv, bool& has_theories) {
+    if (eq(e.decl(), oldDecl)) {
         expr arg1 = e.arg(0).simplify();
         expr arg2 = e.arg(1).simplify();
         auto it = abstractionInv.find(arg1);
@@ -450,10 +483,11 @@ expr replace_nodes(const expr& e, const func_decl& oldDecl, const func_decl& new
             abstr1 = e.ctx().constant(arg1.to_string().c_str(), nodeSort);
             abstractionInv[arg1] = abstr1;
             std::unordered_map<std::string, std::pair<unsigned, std::optional<expr>>> variables;
-            const auto templateExpr = create_template(arg1, variables);
-            std::vector<std::string> variableNames = std::vector<std::string>(variables.size());
+            expr templateExpr = create_template(arg1, variables, has_theories);
+            std::vector<std::pair<std::string, std::optional<sort>>> variableNames;
+            variableNames.resize(variables.size());
             for (const auto& variable: variables) {
-                variableNames[variable.second.first] = variable.first;
+                variableNames[variable.second.first] = std::make_pair(variable.first, variable.second.second->get_sort());
             }
             abstraction[abstr1] = new expr_template(templateExpr, std::move(variableNames));
         }
@@ -466,10 +500,11 @@ expr replace_nodes(const expr& e, const func_decl& oldDecl, const func_decl& new
             abstr2 = e.ctx().constant(arg2.to_string().c_str(), nodeSort);
             abstractionInv[arg2] = abstr2;
             std::unordered_map<std::string, std::pair<unsigned, std::optional<expr>>> variables;
-            auto templateExpr = create_template(arg2, variables);
-            std::vector<std::string> variableNames = std::vector<std::string>(variables.size());
+            auto templateExpr = create_template(arg2, variables, has_theories);
+            std::vector<std::pair<std::string, std::optional<sort>>> variableNames;
+            variableNames.resize(variables.size());
             for (const auto& variable: variables) {
-                variableNames[variable.second.first] = variable.first;
+                variableNames[variable.second.first] = std::make_pair(variable.first, variable.second.second->get_sort());
             }
             abstraction[abstr2] = new expr_template(templateExpr, std::move(variableNames));
         }
@@ -480,7 +515,7 @@ expr replace_nodes(const expr& e, const func_decl& oldDecl, const func_decl& new
     }
     expr_vector args(e.ctx());
     for (const auto& arg: e.args()) {
-        args.push_back(replace_nodes(arg, oldDecl, newDecl, nodeSort, abstraction, abstractionInv));
+        args.push_back(replace_nodes(arg, oldDecl, newDecl, nodeSort, abstraction, abstractionInv, has_theories));
     }
     return e.decl()(args);
 }

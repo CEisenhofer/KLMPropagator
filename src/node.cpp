@@ -25,12 +25,12 @@ std::string node::to_string() const {
     return n;
 }
 
-expr edge::get_variable(const std::string& variable) {
+expr edge::get_variable(const std::string& variable, const z3::sort& s) {
     if (m_variables.find(variable) != m_variables.cend())
         return *m_variables[variable];
-    auto value = expr(m_expr.ctx(), Z3_mk_fresh_const(m_expr.ctx(), variable.c_str(), m_expr.ctx().bool_sort()));
+    auto value = expr(m_expr.ctx(), Z3_mk_fresh_const(m_expr.ctx(), variable.c_str(), s));
     sort_vector domain(m_expr.ctx());
-    value = m_expr.ctx().user_propagate_function(value.decl().name(), domain, m_expr.ctx().bool_sort())();
+    value = m_expr.ctx().user_propagate_function(value.decl().name(), domain, s)();
     m_variables[variable] = value;
     return value;
 }

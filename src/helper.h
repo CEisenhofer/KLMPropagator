@@ -10,6 +10,8 @@
 #include <unordered_set>
 #include <z3++.h>
 
+#define EXP_THEORIES
+
 enum Logic : unsigned char {
     C = 0,
     CL = 1,
@@ -48,16 +50,18 @@ public:
     }
 };
 
-class expr_hash {
-public:
-    std::size_t operator()(expr const& p) const {
-        return p.hash();
-    }
-};
+namespace std {
+    template<>
+    struct hash<expr> {
+        size_t operator()(const expr& e) const {
+            return e.hash();
+        }
+    };
 
-class expr_eq {
-public:
-    bool operator()(expr const& lhs, expr const& rhs) const {
-        return eq(lhs, rhs);
-    }
-};
+    template<>
+    struct equal_to<expr> {
+        bool operator()(const expr& lhs, const expr& rhs) const {
+            return eq(lhs, rhs);
+        }
+    };
+}

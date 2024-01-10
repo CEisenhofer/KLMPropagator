@@ -2,6 +2,7 @@
 
 #include "node.h"
 #include <iostream>
+#include <optional>
 
 class expr_template;
 
@@ -10,14 +11,14 @@ typedef std::function<void()> action;
 class KLMPropagator : public user_propagator_base {
 
     const func_decl& nodeFct;
-    std::unordered_map<expr, node*, expr_hash, expr_eq> exprToNode;
-    std::unordered_map<expr, edge*, expr_hash, expr_eq> exprToEdge;
-    std::unordered_map<expr, expr_template*, expr_hash, expr_eq> abstraction;
+    std::unordered_map<expr, node*> exprToNode;
+    std::unordered_map<expr, edge*> exprToEdge;
+    std::unordered_map<expr, expr_template*> abstraction;
 
     std::vector<unsigned> undoStackSize;
     std::vector<action> undoStack;
 
-    std::unordered_map<expr, bool, expr_hash, expr_eq> interpretation;
+    std::unordered_map<expr, bool> interpretation;
 
     const Logic logic;
 
@@ -48,7 +49,7 @@ class KLMPropagator : public user_propagator_base {
 
 public:
     KLMPropagator(solver& s, const func_decl& nodeFct, Logic logic,
-                  std::unordered_map<expr, expr_template*, expr_hash, expr_eq> abstraction);
+                  std::unordered_map<expr, expr_template*> abstraction);
 
 #ifndef NDEBUG
 #define Log(X) std::cout << X << std::endl
@@ -84,19 +85,19 @@ public:
 
     void check_model();
 
-    std::string get_model(bool smtlib) const;
+    std::string get_model(const model& m, bool smtlib) const;
 
-    std::string display_model(bool smtlib) const;
+    std::string display_model(const model& m, bool smtlib) const;
 };
 
 class expr_template {
 
     expr m_template;
     std::unordered_map<edge*, std::optional<expr>> m_instances; // we assume edge pointers to be unique
-    const std::vector<std::string> m_variables;
+    const std::vector<std::pair<std::string, std::optional<sort>>> m_variables;
 
 public:
-    expr_template(expr temp, std::vector<std::string>&& variables);
+    expr_template(expr temp, std::vector<std::pair<std::string, std::optional<sort>>>&& variables);
 
     expr get_instance(edge* edge);
 

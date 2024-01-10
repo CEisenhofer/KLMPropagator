@@ -176,7 +176,7 @@ public:
     edge(node* from, node* to, expr e) : m_from(from), m_to(to), m_expr(e), m_variables() {
     }
 
-    expr get_variable(const std::string& variable);
+    expr get_variable(const std::string& variable, const z3::sort& s);
 
     bool operator==(const edge& other) const {
         return m_to == other.m_to;

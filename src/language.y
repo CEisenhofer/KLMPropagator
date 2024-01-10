@@ -98,6 +98,8 @@ assertion
 %% 
 
 void yyerror(unsigned* result, const char* s) {
+    if (!g_fail_on_error)
+        return;
 	fprintf(stderr, "Parse error: %s\n", s);
 	exit(254);
 }

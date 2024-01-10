@@ -81,6 +81,7 @@ extern FILE* yyin;
 extern z3::context* g_ctx;
 extern z3::func_decl* g_node_fct;
 extern z3::expr_vector* g_subterms;
+extern bool g_fail_on_error;
 
 void yyerror(unsigned* result, const char* s);
 
@@ -1448,6 +1449,8 @@ yyparse(unsigned* result) {
 
 
 void yyerror(unsigned* result, const char* s) {
+    if (!g_fail_on_error)
+        return;
     fprintf(stderr, "Parse error: %s\n", s);
     exit(254);
 }

@@ -4,7 +4,7 @@
 #include <unordered_map>
 
 KLMPropagator::KLMPropagator(solver& s, const func_decl& nodeFct, Logic logic,
-                             std::unordered_map<expr, expr_template*, expr_hash, expr_eq> abstraction) :
+                             std::unordered_map<expr, expr_template*> abstraction) :
         user_propagator_base(&s), nodeFct(nodeFct), abstraction(std::move(abstraction)), logic(logic) {
     register_fixed();
     register_created();
@@ -346,6 +346,10 @@ Z3_lbool KLMPropagator::eval(const expr& e) {
     if (e.is_eq())
         return eval((!e.arg(0) || e.arg(1)) && (!e.arg(1) || e.arg(0)));
 
+    for (const auto& i : interpretation) {
+        std::cout << i.first.to_string() << " = " << i.second << std::endl;
+    }
+
     model_failed("Unexpected expression: " + e.to_string());
     assert(false);
     return Z3_L_UNDEF;
@@ -507,9 +511,10 @@ void KLMPropagator::check_model() {
     }
 }
 
-std::string KLMPropagator::get_model(bool smtlib) const {
+std::string KLMPropagator::get_model(const model& m, bool smtlib) const {
     std::stringstream sb;
     sb << "Edges:\n";
+    bool failed = false;
     for (const auto& edge: exprToEdge) {
         if (edge.second->get_state() == Connected)
             sb << ExprToString(*edge.second->get_from(), smtlib) << " -> "
@@ -521,9 +526,23 @@ std::string KLMPropagator::get_model(bool smtlib) const {
                 auto it = interpretation.find(*variable.second);
                 if (it != interpretation.end())
                     sb << "\t" << variable.first << " = " << (it->second ? "true" : "false") << "\n";
+#ifdef EXP_THEORIES
+                else {
+                    z3::expr value = m.get_const_interp(variable.second->decl());
+                    sb << "\t" << variable.first << " = " << value.to_string() << "\n";
+                }
+#else
+                else {
+                    sb << "\tCould not output non-boolean: " << variable.first << "\n";
+                    failed = true;
+                }
+#endif
             }
             sb << "\n";
         }
+    }
+    if (failed){
+        sb << "Output did not contain theory atoms; enable experimental feature in the code to show the values\n";
     }
     return sb.str();
 }
@@ -561,7 +580,7 @@ struct std::hash<ptr_pair<node>> {
 };
 
 
-std::string KLMPropagator::display_model(bool smtlib) const {
+std::string KLMPropagator::display_model(const model& m, bool smtlib) const {
     std::stringstream ss;
     ss << "digraph G {\n";
 
@@ -625,7 +644,7 @@ std::string KLMPropagator::display_model(bool smtlib) const {
     return ss.str();
 }
 
-expr_template::expr_template(expr temp, std::vector<std::string>&& variables) : m_template(std::move(temp)),
+expr_template::expr_template(expr temp, std::vector<std::pair<std::string, std::optional<sort>>>&& variables) : m_template(std::move(temp)),
                                                                                 m_variables(variables) {
 }
 
@@ -636,7 +655,7 @@ expr expr_template::get_instance(edge* edge) {
 
     auto replacements = expr_vector(m_template.ctx());
     for (unsigned i = 0; i < m_variables.size(); i++) {
-        replacements.push_back(edge->get_variable(m_variables[i]));
+        replacements.push_back(edge->get_variable(m_variables[i].first, *m_variables[i].second));
     }
     auto instance = m_template.substitute(replacements);
     m_instances[edge] = instance;
@@ -706,7 +725,7 @@ std::string expr_template::ExprToString(const expr& expr) const {
         return ss.str();
     }
     if (expr.is_var())
-        return escape(m_variables[Z3_get_index_value(expr.ctx(), expr)]);
+        return escape(m_variables[Z3_get_index_value(expr.ctx(), expr)].first);
     std::cerr << "Unknown connective in: " << expr.to_string() << std::endl;
     exit(-1);
 }
