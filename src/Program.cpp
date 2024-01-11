@@ -295,6 +295,8 @@ int main(int argc, char** argv) {
             std::stringstream ss(content);
             std::string line;
             while (std::getline(ss, line, '\n')) {
+                if (std::all_of(line.begin(), line.end(), [](char c) { return std::isspace(c); }))
+                    continue;
                 assertions.push_back(parse_language(ctx, node_fct, line, language));
             }
             std::flush(std::cout);
