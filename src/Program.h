@@ -11,7 +11,7 @@ enum language {
 
 int main(int argc, char* argv[]);
 
-void Solve(context& context, const std::string& smtlib2, unsigned timeout, Logic logic, language outputLanguage, bool visual, bool checkResult);
+void Solve(context& context, const std::string& smtlib2, unsigned timeout, Logic logic, language outputLanguage, bool visual, bool checkResult, bool model);
 
 expr replace_nodes(const expr& e, const func_decl& oldDecl, const func_decl& newDecl, const sort& nodeSort,
                    std::unordered_map<expr, expr_template*>& abstraction,

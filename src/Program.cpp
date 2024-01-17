@@ -33,7 +33,7 @@ static void crash_params() {
 
 static void
 parse_params(const std::vector<std::string>& args, unsigned& timeout, Logic& logic, language& language, bool& visual,
-             bool& checkResult, bool& bench) {
+             bool& checkResult, bool& model, bool& bench) {
     if (args.empty() || !std::filesystem::exists(args[args.size() - 1]))
         crash_params();
 
@@ -48,6 +48,7 @@ parse_params(const std::vector<std::string>& args, unsigned& timeout, Logic& log
     language = lang_auto;
     visual = false;
     checkResult = true;
+    model = true;
     bench = false;
 
     for (int i = 0; i < args.size() - 1; i++) {
@@ -75,10 +76,13 @@ parse_params(const std::vector<std::string>& args, unsigned& timeout, Logic& log
         if (args[i] == "--no-check") {
             checkResult = false;
         }
+        if (args[i] == "--no-model") {
+            model = false;
+        }
         if (args[i] == "--auto") {
             language = lang_auto;
         }
-        if (args[i] == "--smtlib" || args[i] == "--lang_smtlib2") {
+        if (args[i] == "--smtlib" || args[i] == "--smtlib2") {
             language = lang_smtlib2;
         }
         if (args[i] == "--custom") {
@@ -263,8 +267,9 @@ int main(int argc, char** argv) {
     language language;
     bool visual;
     bool checkResult;
+    bool model;
     bool bench;
-    parse_params(args, timeout, logic, language, visual, checkResult, bench);
+    parse_params(args, timeout, logic, language, visual, checkResult, model, bench);
 
     if (bench) {
         benchmark(logic);
@@ -312,11 +317,11 @@ int main(int argc, char** argv) {
             language = lang_smtlib2;
         }
     }
-    Solve(ctx, smtlib2, timeout, logic, language, visual, checkResult);
+    Solve(ctx, smtlib2, timeout, logic, language, visual, checkResult, model);
     return 0;
 }
 
-void Solve(context& context, const std::string& smtlib2, unsigned timeout, Logic logic, language outputLanguage, bool visual, bool checkResult) {
+void Solve(context& context, const std::string& smtlib2, unsigned timeout, Logic logic, language outputLanguage, bool visual, bool checkResult, bool model) {
     assert(outputLanguage != lang_auto);
     sort nodeSort = context.uninterpreted_sort("Node");
 
@@ -373,21 +378,23 @@ void Solve(context& context, const std::string& smtlib2, unsigned timeout, Logic
     const auto time = stop_watch();
     std::cout << res << " in " << time << "mrs" << std::endl;
     if (res == sat) {
-        std::cout << std::endl;
-        z3::model m = solver.get_model();
-        std::string modelString = propagator.get_model(m, outputLanguage == lang_smtlib2);
-        std::cout << modelString << std::endl;
-        if (visual) {
-            std::string s = propagator.display_model(m, outputLanguage == lang_smtlib2);
-            std::ofstream of("output-graph.dot");
-            of << s;
-            of.close();
-            std::ofstream of2("output-info.txt");
-            of2 << modelString;
-            of2.close();
-            std::cout
-                    << "Outputting graph to \"output-graph.dot\" - use dot (graphviz) to compile.\nModel written to \"output-info.txt\""
-                    << std::endl;
+        if (model) {
+            std::cout << std::endl;
+            z3::model m = solver.get_model();
+            std::string modelString = propagator.get_model(m, outputLanguage == lang_smtlib2);
+            std::cout << modelString << std::endl;
+            if (visual) {
+                std::string s = propagator.display_model(m, outputLanguage == lang_smtlib2);
+                std::ofstream of("output-graph.dot");
+                of << s;
+                of.close();
+                std::ofstream of2("output-info.txt");
+                of2 << modelString;
+                of2.close();
+                std::cout
+                        << "Outputting graph to \"output-graph.dot\" - use dot (graphviz) to compile.\nModel written to \"output-info.txt\""
+                        << std::endl;
+            }
         }
         if (checkResult) {
             if (has_theories)
@@ -446,7 +453,7 @@ void benchmark(Logic logic) {
         assertions.push_back(
                 !nodeFct(spec.get_negative()->get_lhs()->ToZ3(ctx).simplify(),
                          spec.get_negative()->get_rhs()->ToZ3(ctx).simplify()));
-        Solve(ctx, to_SMTLIB(assertions), 0, logic, lang_custom, false, true);
+        Solve(ctx, to_SMTLIB(assertions), 0, logic, lang_custom, false, true, false);
     }
 }
 

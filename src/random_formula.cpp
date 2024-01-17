@@ -225,7 +225,7 @@ expr And::ToZ3(context& ctx) const {
 }
 
 bool And::operator==(const Formula* other) const {
-    if (typeid(*other) == typeid(Negation))
+    if (typeid(*other) == typeid(And))
         return operator==(*(const And*) other);
     return false;
 }
