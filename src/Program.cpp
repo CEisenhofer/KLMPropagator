@@ -51,7 +51,7 @@ parse_params(const std::vector<std::string>& args, unsigned& timeout, Logic& log
     model = true;
     bench = false;
 
-    for (int i = 0; i < args.size() - 1; i++) {
+    for (int i = 1; i < args.size() - 1; i++) {
         if (starts_with(args[i], "-t=")) {
             std::stringstream ss(args[i]);
             ss.ignore(3);
@@ -72,25 +72,33 @@ parse_params(const std::vector<std::string>& args, unsigned& timeout, Logic& log
         }
         if (args[i] == "--bench") {
             bench = true;
+            continue;
         }
         if (args[i] == "--no-check") {
             checkResult = false;
+            continue;
         }
         if (args[i] == "--no-model") {
             model = false;
+            continue;
         }
         if (args[i] == "--auto") {
             language = lang_auto;
+            continue;
         }
         if (args[i] == "--smtlib" || args[i] == "--smtlib2") {
             language = lang_smtlib2;
+            continue;
         }
         if (args[i] == "--custom") {
             language = lang_custom;
+            continue;
         }
         if (args[i] == "--visual") {
             visual = true;
+            continue;
         }
+        std::cout << "Warning: Unknown parameter: " << args[i] << std::endl;
     }
 }
 
@@ -432,7 +440,6 @@ std::string to_SMTLIB(const expr_vector& assertions) {
 }
 
 void benchmark(Logic logic) {
-    std::random_device rd;
     int seed = 0;
     std::cout << "Random seed: " << seed << std::endl;
     constexpr int maxVariables = 10;

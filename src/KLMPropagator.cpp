@@ -11,12 +11,12 @@ KLMPropagator::KLMPropagator(solver& s, const func_decl& nodeFct, Logic logic,
 }
 
 void KLMPropagator::push() {
-    //Log("Push");
+    Log("Push");
     undoStackSize.push_back(undoStack.size());
 }
 
 void KLMPropagator::pop(unsigned n) {
-    // Log("Pop: " + n);
+    Log("Pop to: " << undoStackSize.size() - n);
     int size = undoStackSize[undoStackSize.size() - n];
     undoStackSize.erase(undoStackSize.end() - (int) n, undoStackSize.end());
     for (int i = undoStack.size(); i > size; i--) {
@@ -27,7 +27,7 @@ void KLMPropagator::pop(unsigned n) {
 
 void KLMPropagator::fixed(const expr& e, const expr& v) {
     try {
-        // Log("Fixed: " << e << " = " << v);
+        Log("Fixed: " << e << " = " << v);
         assert(!(v.is_true() && v.is_false()));
         bool val = v.is_true();
         assert(interpretation.find(e) == interpretation.end());
@@ -118,24 +118,38 @@ void KLMPropagator::AddPosConnection(edge* e1) {
 
     if (HasLoop()) {
         if (!HasTrans()) { // Trans subsumes Loop; just apply only Trans
-
             if (e1->get_to()->is_transitive_out(e1->get_from())) {
-                const expr_vector cycleJustExpr = e1->get_to()->get_transitive_out_just(e1->get_from());
+                expr_vector cycleJustExpr(ctx());
+                cycleJustExpr.push_back(e1->get_expr());
                 // We now have at least one cycle
-
                 for (auto& r1: e1->get_to()->get_transitive_out()) {
                     if (r1.first->is_transitive_out(e1->get_from())) {
+                        for (const auto& expr: r1.second) {
+                            cycleJustExpr.push_back(expr->get_expr());
+                        }
                         // r1 seems to be on one cycle as well
-
                         for (auto& r2: r1.first->get_connected()) {
+                            if (r2.first == r1.first)
+                                continue; // ignore reflexivity
                             if (r2.first->is_transitive_out(e1->get_from())) {
                                 // ... and r2 as well
                                 if (!r2.first->is_connected(r1.first)) {
+                                    unsigned prevSize = cycleJustExpr.size();
+                                    cycleJustExpr.push_back(r2.second->get_expr());
+                                    for (const auto& expr: r2.first->get_transitive_out(e1->get_from())) {
+                                        cycleJustExpr.push_back(expr->get_expr());
+                                    }
                                     // And there is no edge yet between r1 and r2
+                                    Log("Added loop inv-edge: " << cycleJustExpr.to_string() << " ||- " << r2.first->to_string() << " -> " << r1.first->to_string());
+                                    if (cycleJustExpr.size() <= 2) {
+                                        assert(false);
+                                    }
                                     propagate(cycleJustExpr, nodeFct(r2.first->get_label(), r1.first->get_label()));
+                                    cycleJustExpr.resize(prevSize);
                                 }
                             }
                         }
+                        cycleJustExpr.resize(1);
                     }
                 }
             }
@@ -509,6 +523,7 @@ void KLMPropagator::check_model() {
 
         delete[] reachable;
     }
+    std::cout << "Model check successful" << std::endl;
 }
 
 std::string KLMPropagator::get_model(const model& m, bool smtlib) const {
