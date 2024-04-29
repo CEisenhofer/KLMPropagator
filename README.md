@@ -114,3 +114,13 @@ The problem before can be written as
 
 Don't worry about the fact that `A`, `B`, and `C` are defined as Boolean constants.
 The tool automatically transform the input into another form internally.
+
+
+#### Experiments
+We tested our tool on randomly generated benchmarks (script: `Benchmark.cs`).
+The benchmarks used in the paper are stored in the folder `bench` (contains both the inputs for IOCondProver [.iocond], KLMlean 2.0 [.c.klm/.cl.p.klm], NESCOND [.nescond] and KLMPropagator [.smt2]).
+For generating new benchmarks invoke the script `Benchmark.cs` with the desired parameters (see respective file for an example).
+The script will automatically compare the results of KLMPropagator against the other tools.
+
+For manually running the prolog tools, call prolog (preferably "SICStus Prolog") with the respective script (KLMlean, IOCondProver, NESCOND) and use the content of the respective benchmark file as a query.
+For KLMPropagator use the tool as described above.
