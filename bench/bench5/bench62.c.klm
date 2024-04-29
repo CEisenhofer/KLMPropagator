@@ -1,0 +1,1 @@
+prove([(v0 or (neg v1) or v2) => v2, v3 => (t or (neg t)), (v0 or (neg v2)) => (neg v2), (v0 or (neg v1) or (neg v2)) => (neg v4), (v0 or (neg v2) or (neg v4)) => (v3 or (neg v4)), (neg (v2 => v1))], [], Tree, []).

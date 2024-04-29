@@ -1,0 +1,1 @@
+prove(out3id, seq([cimp(or(at(v0), or(neg(at(v1)), at(v2))), at(v2)), cimp(at(v3), or(at(t), neg(at(t)))), cimp(or(at(v0), neg(at(v2))), neg(at(v2))), cimp(or(at(v0), or(neg(at(v1)), neg(at(v2)))), neg(at(v4))), cimp(or(at(v0), or(neg(at(v2)), neg(at(v4)))), or(at(v3), neg(at(v4))))], [cimp(at(v2), at(v1))]), Res).
