@@ -1,4 +1,4 @@
-## KLM User-Propagator
+## KLMPropagator
 
 This tool implements the semantics of KLM (Variants: C, CL, CM, P, and M) via user-propagation in the Z3 SMT solver.
 
@@ -16,11 +16,11 @@ Requirements apart from a C++ 17 compiler:
 Open a console-window at some writeable location, clone the git-repository and navigate into the cloned repo 
 
 ```
-git clone https://github.com/CEisenhofer/UP_KLM.git
+git clone https://github.com/CEisenhofer/KLMPropagator.git
 cd UP_KLM
 ```
 
-create a folder for the compiled output and run cmake (here for Linux)
+(or just download the zip from GitHub) create a folder for the compiled output and run cmake (here for Linux)
 
 ```
 mkdir release
@@ -55,7 +55,7 @@ Additional arguments are:
 ### Model Visualization
 
 In case the argument `--visual` is passed, the solver creates a file called `output-graph.dot` in the sanme directory as the tool.
-You can compile this file into a visualization of the counterexample with graphviz.
+You can compile this file into a visualization of the model (separating graph) with graphviz.
 
 Use via command-line
 ```
