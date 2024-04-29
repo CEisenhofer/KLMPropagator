@@ -92,7 +92,7 @@ entail the pair
 ```
 (B, A & C)
 ```
-by refuting the existence of a counterexample.
+by refuting the existence of a counterexample. (see nescond[1|2|3].klm and test.klm for examples)
 
 #### SMTLIB2
 We can represent the problem by "misusing" SMTLIB2.
@@ -111,6 +111,7 @@ The problem before can be written as
     (not (node B (and A C))))
 )
 ```
+[See test.smt2 for an example]
 
 Don't worry about the fact that `A`, `B`, and `C` are defined as Boolean constants.
 The tool automatically transform the input into another form internally.
