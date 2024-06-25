@@ -17,7 +17,7 @@ Open a console-window at some writeable location, clone the git-repository and n
 
 ```
 git clone https://github.com/CEisenhofer/KLMPropagator.git
-cd UP_KLM
+cd KLMPropagator
 ```
 
 (or just download the zip from GitHub) create a folder for the compiled output and run cmake (here for Linux)
