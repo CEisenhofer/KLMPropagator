@@ -1,4 +1,4 @@
-#include "Node.h"
+#include "node.h"
 
 expr_vector node::get_transitive_out_just(node* n) {
     assert(is_transitive_out(n));
