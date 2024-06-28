@@ -27,14 +27,14 @@ static uint64_t stop_watch() {
 static std::unordered_map<std::string, Logic> SupportedLogicsMap;
 
 static void crash_params() {
-    std::cout << "Usage: KLM [-t=[timeout in ms] -l=[C|CL|CM|P|M] --smtlib --visual] <file>" << std::endl;
+    std::cout << "Usage: KLMPropagator [-t=[timeout in ms] -l=[C|CL|CM|P|M] --smtlib --visual] <file>" << std::endl;
     exit(-1);
 }
 
 static void
 parse_params(const std::vector<std::string>& args, unsigned& timeout, Logic& logic, language& language, bool& visual,
              bool& checkResult, bool& model, bool& bench) {
-    if (args.empty() || !std::filesystem::exists(args[args.size() - 1]))
+    if (args.size() < 2 || !std::filesystem::exists(args[args.size() - 1]))
         crash_params();
 
     SupportedLogicsMap["C"] = C;
