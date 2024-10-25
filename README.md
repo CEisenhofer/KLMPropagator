@@ -107,9 +107,11 @@ The problem before can be written as
 (declare-const C Bool)
 
 (assert 
-    (and (node (or C (not (and A B))) B)
-    (node (not B) (or C A))      
-    (not (node B (and A C))))
+    (and
+        (edge (or C (not (and A B))) B)
+        (edge (not B) (or C A))      
+        (not (edge B (and A C)))
+    )
 )
 ```
 [See test.smt2 for an example]
