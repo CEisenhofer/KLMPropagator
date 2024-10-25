@@ -10,8 +10,6 @@
 #include <unordered_set>
 #include <z3++.h>
 
-#define EXP_THEORIES
-
 enum Logic : unsigned char {
     C = 0,
     CL = 1,

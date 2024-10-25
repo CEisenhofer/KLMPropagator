@@ -369,9 +369,6 @@ void Solve(context& context, const std::string& smtlib2, unsigned timeout, Logic
 
     params param(context);
     param.set("smt.phase_selection", 1u);
-#ifdef EXP_THEORIES
-    param.set("model.user_propagator_functions", true);
-#endif
     param.set("solver.timeout", timeout);
 
     solver solver(context);
