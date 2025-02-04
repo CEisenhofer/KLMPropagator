@@ -1,5 +1,6 @@
 #include "Program.h"
 #include "language.tab.h"
+#include <algorithm>
 #include <cstdlib>
 #include <chrono>
 #include <fstream>
